@@ -28,14 +28,19 @@ public class VaultService {
     private static final String VAULT_KV_V2_PATH = "/v1/secret/data/";
     private static final String VAULT_SYSTEM_HEALTH_PATH = "/v1/sys/health";
 
+    private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
+
     @Autowired
-    private ObjectMapper objectMapper;
+    public VaultService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     public boolean isHealthy() {
 
         boolean isHealthy = false;
         try {
-            RestTemplate restTemplate = new RestTemplate();
             ResponseEntity<String> response = restTemplate.exchange(
                     vaultUrl + VAULT_SYSTEM_HEALTH_PATH,
                     HttpMethod.GET,
@@ -70,8 +75,6 @@ public class VaultService {
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-            RestTemplate restTemplate = new RestTemplate();
-
             ResponseEntity<String> response = restTemplate.exchange(
                     vaultUrl + VAULT_KV_V2_PATH + key,
                     HttpMethod.POST,
@@ -99,8 +102,6 @@ public class VaultService {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<String> request = new HttpEntity<>(null, headers);
-
-            RestTemplate restTemplate = new RestTemplate();
 
             ResponseEntity<String> response = restTemplate.exchange(
                     vaultUrl + VAULT_KV_V2_PATH + ACCESS_TOKEN_NAME,
