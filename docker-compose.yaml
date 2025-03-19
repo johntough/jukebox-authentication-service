@@ -1,0 +1,19 @@
+services:
+  authentication-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    env_file: auth-service/.env
+    ports:
+      - "3001:3001"
+  vault:
+    image: vault:1.10.4
+    container_name: vault
+    env_file: vault/.env
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: "vault server -dev -log-level=debug"
