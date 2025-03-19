@@ -54,7 +54,7 @@ jobs:
           distribution: 'temurin'
     
       - name: Build with Maven
-        run: mvn clean verify
+        run: mvn clean install verify
       
       - name: Analyze with SonarCloud
 
