@@ -39,10 +39,14 @@ permissions:
   pull-requests: read # allows SonarCloud to decorate PRs with analysis results
 
 jobs:
-  Analysis:
+  build:
+    name: Build and Analyze
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+          
       - name: Build with Maven
         run: mvn clean verify
       
