@@ -1,38 +1,44 @@
 package com.tough.jukebox.authentication.service;
 
-import org.junit.jupiter.api.BeforeEach;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tough.jukebox.authentication.exceptions.VaultFailureException;
+import com.tough.jukebox.authentication.model.VaultResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.HashMap;
+import java.util.Map;
+
+import static com.tough.jukebox.authentication.service.VaultService.getVaultSystemHealthPath;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-public class VaultServiceTest {
+@ExtendWith(MockitoExtension.class)
+class VaultServiceTest {
 
     @Mock
     private RestTemplate restTemplate;
 
+    @Mock
+    private ObjectMapper objectMapper;
+
     @InjectMocks
     private VaultService vaultService;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
-
     @Test
-    public void testIsHealthy_healthy() {
+    void testIsHealthyReturnsTrueWhenHealthy() {
 
-        ResponseEntity<String> response = new ResponseEntity<>(HttpStatus.OK);
+        ResponseEntity<String> response = mock(ResponseEntity.class);
+        when(response.getStatusCode()).thenReturn(HttpStatus.OK);
 
         when(restTemplate.exchange(
                 any(String.class),
@@ -43,16 +49,17 @@ public class VaultServiceTest {
 
         boolean result = vaultService.isHealthy();
 
-        assertTrue(result, "Vault should be healthy when response is OK");
+        assertTrue(result, "Expected Vault to be reported as healthy when HTTP status = (200 OK)");
     }
 
     @Test
-    public void testIsHealthy_unhealthy() {
+    void testIsHealthyReturnsFalseWhenUnhealthy() {
 
-        ResponseEntity<String> response = new ResponseEntity<>(HttpStatus.NOT_IMPLEMENTED);
+        ResponseEntity<String> response = mock(ResponseEntity.class);
+        when(response.getStatusCode()).thenReturn(HttpStatus.NOT_IMPLEMENTED);
 
         when(restTemplate.exchange(
-                any(String.class),
+                eq(vaultService.getVaultUrl() + getVaultSystemHealthPath()),
                 eq(HttpMethod.GET),
                 eq(null),
                 eq(String.class))
@@ -60,16 +67,14 @@ public class VaultServiceTest {
 
         boolean result = vaultService.isHealthy();
 
-        assertFalse(result, "Vault should NOT be healthy when response is Not Implemented");
+        assertFalse(result, "Expected Vault to be reported as unhealthy when HTTP status = (501 NOT IMPLEMENTED)");
     }
 
     @Test
-    public void testIsHealthy_exception_handling() {
-
-        ResponseEntity<String> response = new ResponseEntity<>(HttpStatus.NOT_IMPLEMENTED);
+    void testIsHealthyRuntimeExceptionHandling() {
 
         when(restTemplate.exchange(
-                any(String.class),
+                eq(vaultService.getVaultUrl() + getVaultSystemHealthPath()),
                 eq(HttpMethod.GET),
                 eq(null),
                 eq(String.class))
@@ -77,6 +82,129 @@ public class VaultServiceTest {
 
         boolean result = vaultService.isHealthy();
 
-        assertFalse(result, "Vault should NOT be healthy when exception is thrown");
+        assertFalse(result, "Expected Vault to be reported as unhealthy when exception is thrown (RuntimeException)");
+    }
+
+    @Test
+    void testCreateSecretSuccess() throws VaultFailureException {
+
+        ResponseEntity<String> response = mock(ResponseEntity.class);
+        when(response.getStatusCode()).thenReturn(HttpStatus.OK);
+        final String testKey = "test-key";
+
+        when(restTemplate.exchange(
+                eq(vaultService.getVaultUrl() + VaultService.getVaultKvV2Path() + testKey),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(response);
+
+        Map<String, String> testData = new HashMap<>();
+
+        vaultService.createSecret(testKey, testData);
+
+        verify(restTemplate, times(1)).exchange(
+                eq(vaultService.getVaultUrl() + VaultService.getVaultKvV2Path() + testKey),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(String.class)
+        );
+    }
+
+    @Test
+    void testCreateSecretVaultFailureExceptionHandling() {
+
+        ResponseEntity<String> response = mock(ResponseEntity.class);
+        when(response.getStatusCode()).thenReturn(HttpStatus.BAD_REQUEST);
+
+        final String testKey = "test-key";
+
+        when(restTemplate.exchange(
+                eq(vaultService.getVaultUrl() + VaultService.getVaultKvV2Path() + testKey),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(response);
+
+        Map<String, String> testData = new HashMap<>();
+
+
+        VaultFailureException thrown = assertThrows(VaultFailureException.class, () -> {
+            vaultService.createSecret(testKey, testData);
+        });
+
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+        assertEquals("Failed to store secret", thrown.getMessage());
+    }
+
+    @Test
+    void testReadSecretSuccess() throws VaultFailureException, JsonProcessingException {
+
+        ResponseEntity<String> response = mock(ResponseEntity.class);
+        when(response.getStatusCode()).thenReturn(HttpStatus.OK);
+        when(response.getBody()).thenReturn("body");
+
+        VaultResponse vaultResponse = new VaultResponse();
+        final String testKey = "test-key";
+
+        when(restTemplate.exchange(
+                eq(vaultService.getVaultUrl() + VaultService.getVaultKvV2Path() + testKey),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(response);
+
+        when(objectMapper.readValue(
+                any(String.class),
+                eq(VaultResponse.class)
+        )).thenReturn(vaultResponse);
+
+        VaultResponse returnedVaultResponse = vaultService.readSecret(testKey);
+
+        assertEquals(vaultResponse, returnedVaultResponse);
+    }
+
+    @Test
+    void testReadSecretVaultFailureExceptionHandling() throws VaultFailureException, JsonProcessingException {
+
+        ResponseEntity<String> response = mock(ResponseEntity.class);
+        when(response.getStatusCode()).thenReturn(HttpStatus.BAD_REQUEST);
+
+        final String testKey = "test-key";
+
+        when(restTemplate.exchange(
+                eq(vaultService.getVaultUrl() + VaultService.getVaultKvV2Path() + testKey),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(response);
+
+        VaultFailureException thrown = assertThrows(VaultFailureException.class, () -> {
+            vaultService.readSecret(testKey);
+        });
+
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
+        assertEquals("Failed to read secret", thrown.getMessage());
+    }
+
+    @Test
+    void testReadSecretHttpClientErrorExceptionHandling() throws VaultFailureException, JsonProcessingException {
+
+        VaultResponse vaultResponse = new VaultResponse();
+
+        final String testKey = "test-key";
+
+        when(restTemplate.exchange(
+                eq(vaultService.getVaultUrl() + VaultService.getVaultKvV2Path() + testKey),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND, "Not Found"));
+
+        VaultFailureException thrown = assertThrows(VaultFailureException.class, () -> {
+            vaultService.readSecret(testKey);
+        });
+
+        assertEquals(HttpStatus.NOT_FOUND, thrown.getStatusCode());
     }
 }

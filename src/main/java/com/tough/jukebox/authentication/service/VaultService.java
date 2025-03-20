@@ -1,12 +1,15 @@
 package com.tough.jukebox.authentication.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tough.jukebox.authentication.exceptions.VaultFailureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import com.tough.jukebox.authentication.model.VaultResponse;
 import java.util.HashMap;
@@ -15,7 +18,7 @@ import java.util.Map;
 @Service
 public class VaultService {
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+    private static final Logger logger = LoggerFactory.getLogger(VaultService.class);
 
     @Value(value = "${VAULT_ADDRESS}")
     private String vaultUrl;
@@ -23,7 +26,6 @@ public class VaultService {
     @Value(value = "${VAULT_TOKEN_ID}")
     private String vaultToken;
 
-    private static final String ACCESS_TOKEN_NAME = "access_token";
     private static final String X_VAULT_TOKEN_HEADER = "X-Vault-Token";
     private static final String VAULT_KV_V2_PATH = "/v1/secret/data/";
     private static final String VAULT_SYSTEM_HEALTH_PATH = "/v1/sys/health";
@@ -42,7 +44,7 @@ public class VaultService {
         boolean isHealthy = false;
         try {
             ResponseEntity<String> response = restTemplate.exchange(
-                    vaultUrl + VAULT_SYSTEM_HEALTH_PATH,
+                    getVaultUrl() + getVaultSystemHealthPath(),
                     HttpMethod.GET,
                     null,
                     String.class
@@ -63,69 +65,85 @@ public class VaultService {
         return isHealthy;
     }
 
-    public void createSecret(String key, Map<String, String> secretData) {
+    public void createSecret(String key, Map<String, String> secretData) throws VaultFailureException {
 
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set(X_VAULT_TOKEN_HEADER, vaultToken);
-            headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(getXVaultTokenHeader(), getVaultToken());
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("data", secretData);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("data", secretData);
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-            ResponseEntity<String> response = restTemplate.exchange(
-                    vaultUrl + VAULT_KV_V2_PATH + key,
-                    HttpMethod.POST,
-                    request,
-                    String.class
-            );
+        ResponseEntity<String> response = restTemplate.exchange(
+                getVaultUrl() + getVaultKvV2Path() + key,
+                HttpMethod.POST,
+                request,
+                String.class
+        );
 
-            if (response.getStatusCode().is2xxSuccessful()) {
-                logger.info("Secret stored successfully!");
-            } else {
-                logger.error("Failed to store secret. Status code: {}", response.getStatusCode());
-            }
-        } catch (Exception e) {
-            logger.error("Request failed: {}", e.toString());
+        if (response.getStatusCode().is2xxSuccessful()) {
+            logger.info("Secret stored successfully!");
+        } else {
+            throw new VaultFailureException("Failed to store secret", response.getStatusCode());
         }
     }
 
-    public VaultResponse readSecret() {
+    public VaultResponse readSecret(String key) throws VaultFailureException {
 
         VaultResponse vaultResponse = null;
 
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(getXVaultTokenHeader(), getVaultToken());
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<String> request = new HttpEntity<>(null, headers);
+
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set(X_VAULT_TOKEN_HEADER, vaultToken);
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<String> request = new HttpEntity<>(null, headers);
-
             ResponseEntity<String> response = restTemplate.exchange(
-                    vaultUrl + VAULT_KV_V2_PATH + ACCESS_TOKEN_NAME,
+                    getVaultUrl() + getVaultKvV2Path() + key,
                     HttpMethod.GET,
                     request,
                     String.class
             );
-
             if (response.getStatusCode().is2xxSuccessful()) {
                 logger.info("Secret retrieved successfully!");
 
-                vaultResponse = objectMapper.readValue(response.getBody(), VaultResponse.class);
-                
+                try {
+                    vaultResponse = objectMapper.readValue(response.getBody(), VaultResponse.class);
+                } catch (JsonProcessingException e) {
+                    logger.error("Error parsing Json: {}", e.getMessage());
+                    vaultResponse = new VaultResponse();
+                }
+
             } else {
-                logger.error("Error returned from Vault: {}. Status code: {}",
-                        response.getBody(),
-                        response.getStatusCode()
-                );
+                throw new VaultFailureException("Failed to read secret", response.getStatusCode());
             }
-        } catch (Exception e) {
-            vaultResponse = new VaultResponse();
-            logger.error("Request failed: {}", e.toString());
+        } catch (HttpClientErrorException e) {
+            throw new VaultFailureException("Failed to read secret", e.getStatusCode());
         }
 
         return vaultResponse;
+    }
+
+    public String getVaultUrl() {
+        return vaultUrl;
+    }
+
+    public String getVaultToken() {
+        return vaultToken;
+    }
+
+    public static String getXVaultTokenHeader() {
+        return X_VAULT_TOKEN_HEADER;
+    }
+
+    public static String getVaultKvV2Path() {
+        return VAULT_KV_V2_PATH;
+    }
+
+    public static String getVaultSystemHealthPath() {
+        return VAULT_SYSTEM_HEALTH_PATH;
     }
 }

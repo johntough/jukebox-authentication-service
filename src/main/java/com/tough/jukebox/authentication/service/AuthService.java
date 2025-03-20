@@ -1,5 +1,6 @@
 package com.tough.jukebox.authentication.service;
 
+import com.tough.jukebox.authentication.exceptions.VaultFailureException;
 import com.tough.jukebox.authentication.model.VaultResponse;
 import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
@@ -35,7 +36,7 @@ public class AuthService {
     @Value(value = "${CLIENT_SECRET}")
     private String clientSecret;
 
-    @Value(value = "${FRONT_END_REDIRECT")
+    @Value(value = "${FRONT_END_REDIRECT}")
     private String frontendRedirectUri;
 
     private static final String ACCESS_TOKEN_NAME = "access_token";
@@ -43,8 +44,8 @@ public class AuthService {
     private static final String SPOTIFY_TOKEN_URI = "https://accounts.spotify.com/api/token";
     private static final String SPOTIFY_AUTHORIZE_URI = "https://accounts.spotify.com/authorize/";
 
-    private static boolean tokenRefreshProcessEnabled = false;
-    private static int expiresIn = 0;
+    private boolean tokenRefreshProcessEnabled = false;
+    private int expiresIn = 0;
 
     private final VaultService vaultService;
 
@@ -83,7 +84,19 @@ public class AuthService {
     }
 
     public String getToken() {
-        VaultResponse response = vaultService.readSecret();
+
+        VaultResponse response;
+
+        try {
+            response = vaultService.readSecret(ACCESS_TOKEN_NAME);
+        } catch (VaultFailureException exception) {
+            response = new VaultResponse();
+
+            logger.error("Error reading from Vault. Status Code: {}",
+                    exception.getStatusCode()
+            );
+        }
+
         String returnedToken = response.getData().getData().getAccess_token();
 
         return "{\"accessToken\":\"" + returnedToken + "\"}";
@@ -108,10 +121,18 @@ public class AuthService {
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
         requestBodyMap.add("grant_type", REFRESH_TOKEN_NAME);
 
-        String existingRefreshToken = vaultService.readSecret().getData().getData().getRefresh_token();
-        requestBodyMap.add(REFRESH_TOKEN_NAME, existingRefreshToken);
+        try {
+            String existingRefreshToken = vaultService.readSecret(ACCESS_TOKEN_NAME).getData().getData().getRefresh_token();
+            requestBodyMap.add(REFRESH_TOKEN_NAME, existingRefreshToken);
 
-        getAccessToken(requestBodyMap);
+            getAccessToken(requestBodyMap);
+        } catch (VaultFailureException exception) {
+            logger.error("Error reading from Vault: {}, Status Code: {}",
+                    exception.getMessage(),
+                    exception.getStatusCode()
+            );
+        }
+
     }
 
     private void getAccessToken(MultiValueMap<String, String> requestBodyMap) {
@@ -128,7 +149,7 @@ public class AuthService {
 
             if (response != null) {
 
-                String existingRefreshToken = vaultService.readSecret().getData().getData().getRefresh_token();
+                String existingRefreshToken = vaultService.readSecret(ACCESS_TOKEN_NAME).getData().getData().getRefresh_token();
 
                 String localAccessToken = (String) response.get(ACCESS_TOKEN_NAME);
                 String localRefreshToken = (Objects.isNull(response.get(REFRESH_TOKEN_NAME))) ? existingRefreshToken : (String) response.get(REFRESH_TOKEN_NAME);
@@ -145,8 +166,13 @@ public class AuthService {
                 logger.info("Access token valid for {} minutes", expiresIn/60);
             }
         } catch(HttpClientErrorException exception) {
-            logger.error("Client Error: message: {} ",
+            logger.error("HttpClientErrorException: message: {} ",
                     exception.getMessage()
+            );
+        } catch (VaultFailureException exception) {
+            logger.error("Error when interacting with Vault: {}, Status Code: {}",
+                    exception.getMessage(),
+                    exception.getStatusCode()
             );
         }
     }
