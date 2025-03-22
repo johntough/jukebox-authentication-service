@@ -3,7 +3,6 @@ package com.tough.jukebox.authentication.service;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tough.jukebox.authentication.config.SpotifyConfig;
 import com.tough.jukebox.authentication.config.VaultConfig;
 import com.tough.jukebox.authentication.exceptions.VaultFailureException;
 import com.tough.jukebox.authentication.model.VaultResponse;
