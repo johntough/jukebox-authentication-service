@@ -28,21 +28,21 @@ public class AuthController {
 
         logger.info("/auth/login request received");
 
-        return authService.login(scope);
+        return authService.returnSpotifyLoginRedirectUri(scope);
     }
 
-    @GetMapping("auth/callback")
-    public ResponseEntity<Void> callback(@RequestParam String code) {
+    @GetMapping("auth/spotifyAuthorizationCallback")
+    public ResponseEntity<Void> spotifyAuthorizationCallback(@RequestParam String code) {
 
-        logger.info("/auth/callback request received");
+        logger.info("/auth/spotifyAuthorizationCallback request received");
 
-        return authService.callback(code);
+        return authService.spotifyAuthorizationCallback(code);
     }
 
     @GetMapping("auth/token")
     public String getToken() {
         logger.info("/auth/token request received");
 
-        return authService.getToken();
+        return authService.returnAccessTokenJson();
     }
 }

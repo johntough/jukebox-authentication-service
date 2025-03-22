@@ -1,15 +1,15 @@
 package com.tough.jukebox.authentication.service;
 
+import com.tough.jukebox.authentication.config.SpotifyConfig;
+import com.tough.jukebox.authentication.config.WebConfig;
 import com.tough.jukebox.authentication.exceptions.VaultFailureException;
 import com.tough.jukebox.authentication.model.VaultResponse;
 import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -20,47 +20,46 @@ import java.net.URISyntaxException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 @Service
 public class AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
-    @Value(value = "${SPOTIFY_REDIRECT_URI}")
-    private String spotifyRedirectUri;
-
-    @Value(value = "${CLIENT_ID}")
-    private String clientId;
-
-    @Value(value = "${CLIENT_SECRET}")
-    private String clientSecret;
-
-    @Value(value = "${FRONT_END_REDIRECT}")
-    private String frontendRedirectUri;
-
-    private static final String ACCESS_TOKEN_NAME = "access_token";
-    private static final String REFRESH_TOKEN_NAME = "refresh_token";
-    private static final String SPOTIFY_TOKEN_URI = "https://accounts.spotify.com/api/token";
-    private static final String SPOTIFY_AUTHORIZE_URI = "https://accounts.spotify.com/authorize/";
+    public static final String ACCESS_TOKEN_NAME = "access_token";
+    public static final String REFRESH_TOKEN_NAME = "refresh_token";
+    public static final String AUTHORIZATION_CODE_NAME = "authorization_code";
+    public static final String GRANT_TYPE_NAME = "grant_type";
+    public static final String REDIRECT_URI_NAME = "redirect_uri";
+    public static final String EXPIRES_IN_NAME = "expires_in";
+    public static final String CLIENT_ID_NAME = "client_id";
+    public static final String SCOPE_NAME = "scope";
+    public static final String RESPONSE_TYPE_NAME = "response_type";
+    public static final String SPOTIFY_RESPONSE_TYPE_CODE = "code";
 
     private boolean tokenRefreshProcessEnabled = false;
     private int expiresIn = 0;
 
     private final VaultService vaultService;
+    private final RestTemplate restTemplate;
+    private final SpotifyConfig spotifyConfig;
+    private final WebConfig webConfig;
 
     @Autowired
-    public AuthService(VaultService vaultService) {
+    public AuthService(VaultService vaultService, RestTemplate restTemplate, SpotifyConfig serviceConfig, WebConfig webConfig) {
         this.vaultService = vaultService;
+        this.restTemplate = restTemplate;
+        this.spotifyConfig = serviceConfig;
+        this.webConfig = webConfig;
     }
 
-    public String login(String scope) throws URISyntaxException {
+    public String returnSpotifyLoginRedirectUri(String scope) throws URISyntaxException {
 
-        URIBuilder uriBuilder = new URIBuilder(SPOTIFY_AUTHORIZE_URI);
-        uriBuilder.addParameter("response_type", "code");
-        uriBuilder.addParameter("client_id", clientId);
-        uriBuilder.addParameter("scope", scope);
-        uriBuilder.addParameter("redirect_uri", spotifyRedirectUri);
+        URIBuilder uriBuilder = new URIBuilder(spotifyConfig.getSpotifyAuthorizeUri());
+        uriBuilder.addParameter(RESPONSE_TYPE_NAME, SPOTIFY_RESPONSE_TYPE_CODE);
+        uriBuilder.addParameter(CLIENT_ID_NAME, spotifyConfig.getSpotifyAppClientId());
+        uriBuilder.addParameter(SCOPE_NAME, scope);
+        uriBuilder.addParameter(REDIRECT_URI_NAME, spotifyConfig.getSpotifyRedirectUri());
 
         String uri = uriBuilder.build().toString();
 
@@ -69,34 +68,22 @@ public class AuthService {
         return "{\"redirectUri\":\"" + uri + "\"}";
     }
 
-    public ResponseEntity<Void> callback(String authCode) {
+    public ResponseEntity<Void> spotifyAuthorizationCallback(String authCode) {
 
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
-        requestBodyMap.add("redirect_uri", spotifyRedirectUri);
-        requestBodyMap.add("grant_type", "authorization_code");
-        requestBodyMap.add("code", authCode);
+        requestBodyMap.add(REDIRECT_URI_NAME, spotifyConfig.getSpotifyRedirectUri());
+        requestBodyMap.add(GRANT_TYPE_NAME, AUTHORIZATION_CODE_NAME);
+        requestBodyMap.add(SPOTIFY_RESPONSE_TYPE_CODE, authCode);
 
-        getAccessToken(requestBodyMap);
+        requestAccessTokenFromSpotifyAndStoreInVault(requestBodyMap);
 
         return ResponseEntity.status(HttpStatus.FOUND)  // 302 Redirect
-                .location(URI.create(frontendRedirectUri))
+                .location(URI.create(webConfig.getFrontendRedirectUri()))
                 .build();
     }
 
-    public String getToken() {
-
-        VaultResponse response;
-
-        try {
-            response = vaultService.readSecret(ACCESS_TOKEN_NAME);
-        } catch (VaultFailureException exception) {
-            response = new VaultResponse();
-
-            logger.error("Error reading from Vault. Status Code: {}",
-                    exception.getStatusCode()
-            );
-        }
-
+    public String returnAccessTokenJson() {
+        VaultResponse response = fetchAccessTokenFromVault();
         String returnedToken = response.getData().getData().getAccess_token();
 
         return "{\"accessToken\":\"" + returnedToken + "\"}";
@@ -104,7 +91,6 @@ public class AuthService {
 
     @Scheduled(fixedRate = 60000)  // Runs every minute
     private void checkTokenRefresh() {
-
         if (tokenRefreshProcessEnabled) {
             if (expiresIn <= 300) { // 5 minutes
                 refreshAccessToken();
@@ -115,65 +101,58 @@ public class AuthService {
     }
 
     private void refreshAccessToken() {
-
         logger.info("Initiating token refresh process");
 
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
-        requestBodyMap.add("grant_type", REFRESH_TOKEN_NAME);
+        requestBodyMap.add(GRANT_TYPE_NAME, REFRESH_TOKEN_NAME);
 
-        try {
-            String existingRefreshToken = vaultService.readSecret(ACCESS_TOKEN_NAME).getData().getData().getRefresh_token();
-            requestBodyMap.add(REFRESH_TOKEN_NAME, existingRefreshToken);
+        String existingRefreshToken = fetchAccessTokenFromVault().getData().getData().getRefresh_token();
+        requestBodyMap.add(REFRESH_TOKEN_NAME, existingRefreshToken);
 
-            getAccessToken(requestBodyMap);
-        } catch (VaultFailureException exception) {
-            logger.error("Error reading from Vault: {}, Status Code: {}",
-                    exception.getMessage(),
-                    exception.getStatusCode()
-            );
-        }
-
+        requestAccessTokenFromSpotifyAndStoreInVault(requestBodyMap);
     }
 
-    private void getAccessToken(MultiValueMap<String, String> requestBodyMap) {
+    private VaultResponse fetchAccessTokenFromVault() {
+        try {
+            return vaultService.readSecret(ACCESS_TOKEN_NAME);
+        } catch (VaultFailureException e) {
+            logger.error("Error reading from Vault: {}", e.getMessage());
+            return new VaultResponse();
+        }
+    }
+
+    private void requestAccessTokenFromSpotifyAndStoreInVault(MultiValueMap<String, String> requestBodyMap) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        headers.setBasicAuth(Base64.getEncoder().encodeToString((clientId + ":" + clientSecret).getBytes()));
+        headers.setBasicAuth(Base64.getEncoder().encodeToString((spotifyConfig.getSpotifyAppClientId() + ":" + spotifyConfig.getSpotifyAppClientSecret()).getBytes()));
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(requestBodyMap, headers);
 
-        RestTemplate restTemplate = new RestTemplate();
+        Map<String, Object> response = restTemplate.postForObject(
+                spotifyConfig.getSpotifyTokenUri(),
+                request,
+                Map.class
+        );
 
+        if (response != null) {
+            storeTokenInVault(response);
+        }
+    }
+
+    private void storeTokenInVault(Map<String, Object> response) {
+        String accessToken = (String) response.get(ACCESS_TOKEN_NAME);
+        String refreshToken = (String) response.getOrDefault(REFRESH_TOKEN_NAME, fetchAccessTokenFromVault());
+
+        Map<String, String> secretData = new HashMap<>();
+        secretData.put(ACCESS_TOKEN_NAME, accessToken);
+        secretData.put(REFRESH_TOKEN_NAME, refreshToken);
         try {
-            Map<String, Object> response = restTemplate.postForObject(SPOTIFY_TOKEN_URI, request, Map.class);
-
-            if (response != null) {
-
-                String existingRefreshToken = vaultService.readSecret(ACCESS_TOKEN_NAME).getData().getData().getRefresh_token();
-
-                String localAccessToken = (String) response.get(ACCESS_TOKEN_NAME);
-                String localRefreshToken = (Objects.isNull(response.get(REFRESH_TOKEN_NAME))) ? existingRefreshToken : (String) response.get(REFRESH_TOKEN_NAME);
-                expiresIn = (int) response.get("expires_in");
-                tokenRefreshProcessEnabled = true;
-
-                // send secrets to Vault
-                Map<String, String> secretData = new HashMap<>();
-                secretData.put(ACCESS_TOKEN_NAME, localAccessToken);
-                secretData.put(REFRESH_TOKEN_NAME, localRefreshToken);
-                vaultService.createSecret(ACCESS_TOKEN_NAME, secretData);
-
-                logger.info("Access token successfully extracted");
-                logger.info("Access token valid for {} minutes", expiresIn/60);
-            }
-        } catch(HttpClientErrorException exception) {
-            logger.error("HttpClientErrorException: message: {} ",
-                    exception.getMessage()
-            );
-        } catch (VaultFailureException exception) {
-            logger.error("Error when interacting with Vault: {}, Status Code: {}",
-                    exception.getMessage(),
-                    exception.getStatusCode()
-            );
+            vaultService.createSecret(ACCESS_TOKEN_NAME, secretData);
+            expiresIn = (int) response.get(EXPIRES_IN_NAME);
+            tokenRefreshProcessEnabled = true;
+            logger.info("Access token successfully extracted and saved to Vault, valid for {} minutes", expiresIn / 60);
+        } catch (VaultFailureException e) {
+            logger.error("Error when saving access token to Vault: {}", e.getMessage());
         }
     }
 }

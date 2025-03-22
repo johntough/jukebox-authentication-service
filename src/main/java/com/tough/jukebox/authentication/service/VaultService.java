@@ -2,11 +2,11 @@ package com.tough.jukebox.authentication.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tough.jukebox.authentication.config.VaultConfig;
 import com.tough.jukebox.authentication.exceptions.VaultFailureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -20,55 +20,43 @@ public class VaultService {
 
     private static final Logger logger = LoggerFactory.getLogger(VaultService.class);
 
-    @Value(value = "${VAULT_ADDRESS}")
-    private String vaultUrl;
-
-    @Value(value = "${VAULT_TOKEN_ID}")
-    private String vaultToken;
-
-    private static final String X_VAULT_TOKEN_HEADER = "X-Vault-Token";
-    private static final String VAULT_KV_V2_PATH = "/v1/secret/data/";
-    private static final String VAULT_SYSTEM_HEALTH_PATH = "/v1/sys/health";
-
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private final VaultConfig vaultConfig;
 
     @Autowired
-    public VaultService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public VaultService(RestTemplate restTemplate, ObjectMapper objectMapper, VaultConfig vaultConfig) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.vaultConfig = vaultConfig;
     }
 
     public boolean isHealthy() {
 
-        boolean isHealthy = false;
         try {
             ResponseEntity<String> response = restTemplate.exchange(
-                    getVaultUrl() + getVaultSystemHealthPath(),
+                    vaultConfig.getVaultBaseUrl() + vaultConfig.getVaultSystemHealthPath(),
                     HttpMethod.GET,
                     null,
                     String.class
             );
 
             if (response.getStatusCode() == HttpStatus.OK) {
-                isHealthy = true;
                 logger.info("Vault is healthy. Status code: {}", response.getStatusCode());
+                return true;
             } else {
                 logger.error("Vault is not healthy. Status code: {}", response.getStatusCode());
+                return false;
             }
-
-        } catch (Exception e) {
-            logger.error("Request failed: {}", e.toString());
-            return isHealthy;
+        } catch (HttpClientErrorException e) {
+            return false;
         }
-
-        return isHealthy;
     }
 
     public void createSecret(String key, Map<String, String> secretData) throws VaultFailureException {
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set(getXVaultTokenHeader(), getVaultToken());
+        headers.set(vaultConfig.getXVaultTokenHeader(), vaultConfig.getVaultToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> payload = new HashMap<>();
@@ -76,17 +64,21 @@ public class VaultService {
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<String> response = restTemplate.exchange(
-                getVaultUrl() + getVaultKvV2Path() + key,
-                HttpMethod.POST,
-                request,
-                String.class
-        );
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    vaultConfig.getVaultBaseUrl() + vaultConfig.getVaultKvV2Path() + key,
+                    HttpMethod.POST,
+                    request,
+                    String.class
+            );
 
-        if (response.getStatusCode().is2xxSuccessful()) {
-            logger.info("Secret stored successfully!");
-        } else {
-            throw new VaultFailureException("Failed to store secret", response.getStatusCode());
+            if (response.getStatusCode().is2xxSuccessful()) {
+                logger.info("Secret stored successfully!");
+            } else {
+                throw new VaultFailureException("Failed to store secret. HTTP response code: " + response.getStatusCode());
+            }
+        } catch (HttpClientErrorException e) {
+            throw new VaultFailureException("Failed to store secret. HTTP response code: " + e.getStatusCode());
         }
     }
 
@@ -95,55 +87,30 @@ public class VaultService {
         VaultResponse vaultResponse = null;
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set(getXVaultTokenHeader(), getVaultToken());
+        headers.set(vaultConfig.getXVaultTokenHeader(), vaultConfig.getVaultToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         HttpEntity<String> request = new HttpEntity<>(null, headers);
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(
-                    getVaultUrl() + getVaultKvV2Path() + key,
+                    vaultConfig.getVaultBaseUrl() + vaultConfig.getVaultKvV2Path() + key,
                     HttpMethod.GET,
                     request,
                     String.class
             );
             if (response.getStatusCode().is2xxSuccessful()) {
                 logger.info("Secret retrieved successfully!");
-
-                try {
-                    vaultResponse = objectMapper.readValue(response.getBody(), VaultResponse.class);
-                } catch (JsonProcessingException e) {
-                    logger.error("Error parsing Json: {}", e.getMessage());
-                    vaultResponse = new VaultResponse();
-                }
-
+                vaultResponse = objectMapper.readValue(response.getBody(), VaultResponse.class);
             } else {
-                throw new VaultFailureException("Failed to read secret", response.getStatusCode());
+                throw new VaultFailureException("Failed to read secret. HTTP response code: " + response.getStatusCode());
             }
         } catch (HttpClientErrorException e) {
-            throw new VaultFailureException("Failed to read secret", e.getStatusCode());
+            throw new VaultFailureException("Failed to read secret. HTTP response code: " + e.getStatusCode());
+        } catch (JsonProcessingException e) {
+            throw new VaultFailureException("Failed to read secret. Error parsing Json: " + e.getMessage());
         }
 
         return vaultResponse;
-    }
-
-    public String getVaultUrl() {
-        return vaultUrl;
-    }
-
-    public String getVaultToken() {
-        return vaultToken;
-    }
-
-    public static String getXVaultTokenHeader() {
-        return X_VAULT_TOKEN_HEADER;
-    }
-
-    public static String getVaultKvV2Path() {
-        return VAULT_KV_V2_PATH;
-    }
-
-    public static String getVaultSystemHealthPath() {
-        return VAULT_SYSTEM_HEALTH_PATH;
     }
 }

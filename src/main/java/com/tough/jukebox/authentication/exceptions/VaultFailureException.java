@@ -4,14 +4,7 @@ import org.springframework.http.HttpStatusCode;
 
 public class VaultFailureException extends Exception {
 
-    private final HttpStatusCode statusCode;
-
-    public VaultFailureException(String message, HttpStatusCode statusCode) {
+    public VaultFailureException(String message) {
         super(message);
-        this.statusCode = statusCode;
-    }
-
-    public HttpStatusCode getStatusCode() {
-        return statusCode;
     }
 }
