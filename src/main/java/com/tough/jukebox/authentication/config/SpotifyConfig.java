@@ -18,9 +18,6 @@ public class SpotifyConfig {
     @Value(value = "${SPOTIFY_TOKEN_URI}")
     private String spotifyTokenUri;
 
-    @Value(value = "${SPOTIFY_AUTHORIZE_URI}")
-    private String spotifyAuthorizeUri;
-
     public String getSpotifyRedirectUri() {
         return spotifyRedirectUri;
     }
@@ -34,6 +31,4 @@ public class SpotifyConfig {
     }
 
     public String getSpotifyTokenUri() { return spotifyTokenUri; }
-
-    public String getSpotifyAuthorizeUri() { return spotifyAuthorizeUri; }
 }

@@ -4,12 +4,14 @@ import com.tough.jukebox.authentication.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URISyntaxException;
+import java.util.Map;
 
 @RestController
 public class AuthController {
@@ -23,26 +25,36 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @GetMapping("/auth/login")
-    public String login(@RequestParam String scope) throws URISyntaxException {
+    @GetMapping("/auth/spotifyRedirectParams")
+    public ResponseEntity<Map<String, String>> getSpotifyRedirectParams() {
 
-        logger.info("/auth/login request received");
+        logger.info("/auth/spotifyRedirectParams request received");
 
-        return authService.returnSpotifyLoginRedirectUri(scope);
+        Map<String, String> params = authService.getSpotifyRedirectParams();
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(params);
     }
 
     @GetMapping("auth/spotifyAuthorizationCallback")
-    public ResponseEntity<Void> spotifyAuthorizationCallback(@RequestParam String code) {
+    public ResponseEntity<Void> exchangeAuthCodeForSpotifyToken(@RequestParam String code) {
 
         logger.info("/auth/spotifyAuthorizationCallback request received");
 
-        return authService.spotifyAuthorizationCallback(code);
+        String redirectUri = authService.exchangeAuthCodeForSpotifyToken(code);
+
+        return ResponseEntity.status(HttpStatus.SEE_OTHER)
+                .header(HttpHeaders.LOCATION, redirectUri)
+                .build();
     }
 
     @GetMapping("auth/token")
-    public String getToken() {
+    public ResponseEntity<Map<String, String>> getSpotifyAccessToken() {
         logger.info("/auth/token request received");
 
-        return authService.returnAccessTokenJson();
+        Map<String, String> response = authService.getSpotifyAccessToken();
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(response);
     }
 }

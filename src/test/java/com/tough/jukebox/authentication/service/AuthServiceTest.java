@@ -10,11 +10,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,19 +41,19 @@ public class AuthServiceTest {
     AuthService authService;
 
     @Test
-    void testSuccessfulLogin() throws URISyntaxException {
+    void testReturnSpotifyLoginRedirectUriSuccessful() throws URISyntaxException {
 
-        when(spotifyConfig.getSpotifyAuthorizeUri()).thenReturn("https://testuri/authorize/");
         when(spotifyConfig.getSpotifyAppClientId()).thenReturn("test-client-id");
         when(spotifyConfig.getSpotifyRedirectUri()).thenReturn("test-redirect-uri");
 
-        String redirectUri = authService.returnSpotifyLoginRedirectUri("test-scope");
+        Map<String, String> params = authService.getSpotifyRedirectParams();
 
-        assertEquals("{\"redirectUri\":\"https://testuri/authorize/?response_type=code&client_id=test-client-id&scope=test-scope&redirect_uri=test-redirect-uri\"}", redirectUri);
+        assertEquals("test-redirect-uri", params.get("redirectUri"));
+        assertEquals("test-client-id", params.get("clientId"));
     }
 
     @Test
-    void testSpotifyAuthorizationCallbackSuccessful() throws VaultFailureException {
+    void testExchangeAuthCodeForSpotifyTokenSuccessful() throws VaultFailureException {
 
         when(spotifyConfig.getSpotifyRedirectUri()).thenReturn("http://localhost:8080/spotify");
         when(spotifyConfig.getSpotifyTokenUri()).thenReturn("http://localhost:8080/token");
@@ -82,12 +79,8 @@ public class AuthServiceTest {
                 any(Map.class)
         );
 
-        ResponseEntity<Void> response = authService.spotifyAuthorizationCallback("test-auth-code");
+        String redirectUri = authService.exchangeAuthCodeForSpotifyToken("test-auth-code");
 
-        ResponseEntity<Void> expectedResponse = ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create("http://localhost:8080/testFrontEndRedirect"))
-                .build();
-
-        assertEquals(expectedResponse, response);
+        assertEquals("http://localhost:8080/testFrontEndRedirect", redirectUri);
     }
 }

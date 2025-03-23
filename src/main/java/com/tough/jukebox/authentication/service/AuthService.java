@@ -4,7 +4,6 @@ import com.tough.jukebox.authentication.config.SpotifyConfig;
 import com.tough.jukebox.authentication.config.WebConfig;
 import com.tough.jukebox.authentication.exceptions.VaultFailureException;
 import com.tough.jukebox.authentication.model.VaultResponse;
-import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,8 +14,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,9 +29,6 @@ public class AuthService {
     public static final String GRANT_TYPE_NAME = "grant_type";
     public static final String REDIRECT_URI_NAME = "redirect_uri";
     public static final String EXPIRES_IN_NAME = "expires_in";
-    public static final String CLIENT_ID_NAME = "client_id";
-    public static final String SCOPE_NAME = "scope";
-    public static final String RESPONSE_TYPE_NAME = "response_type";
     public static final String SPOTIFY_RESPONSE_TYPE_CODE = "code";
 
     private boolean tokenRefreshProcessEnabled = false;
@@ -53,22 +47,17 @@ public class AuthService {
         this.webConfig = webConfig;
     }
 
-    public String returnSpotifyLoginRedirectUri(String scope) throws URISyntaxException {
+    public Map<String, String> getSpotifyRedirectParams() {
 
-        URIBuilder uriBuilder = new URIBuilder(spotifyConfig.getSpotifyAuthorizeUri());
-        uriBuilder.addParameter(RESPONSE_TYPE_NAME, SPOTIFY_RESPONSE_TYPE_CODE);
-        uriBuilder.addParameter(CLIENT_ID_NAME, spotifyConfig.getSpotifyAppClientId());
-        uriBuilder.addParameter(SCOPE_NAME, scope);
-        uriBuilder.addParameter(REDIRECT_URI_NAME, spotifyConfig.getSpotifyRedirectUri());
+        Map<String, String> responseMap = new HashMap<>();
+        responseMap.put("clientId", spotifyConfig.getSpotifyAppClientId());
+        responseMap.put("redirectUri", spotifyConfig.getSpotifyRedirectUri());
 
-        String uri = uriBuilder.build().toString();
-
-        logger.info("Redirecting user to Spotify authorization page");
-
-        return "{\"redirectUri\":\"" + uri + "\"}";
+        return responseMap;
     }
 
-    public ResponseEntity<Void> spotifyAuthorizationCallback(String authCode) {
+    // TODO: unhappy path to be added (and wired through to controller)
+    public String exchangeAuthCodeForSpotifyToken(String authCode) {
 
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
         requestBodyMap.add(REDIRECT_URI_NAME, spotifyConfig.getSpotifyRedirectUri());
@@ -77,16 +66,17 @@ public class AuthService {
 
         requestAccessTokenFromSpotifyAndStoreInVault(requestBodyMap);
 
-        return ResponseEntity.status(HttpStatus.FOUND)  // 302 Redirect
-                .location(URI.create(webConfig.getFrontendRedirectUri()))
-                .build();
+        return webConfig.getFrontendRedirectUri();
     }
 
-    public String returnAccessTokenJson() {
+    public Map<String, String> getSpotifyAccessToken() {
         VaultResponse response = fetchAccessTokenFromVault();
         String returnedToken = response.getData().getData().getAccess_token();
 
-        return "{\"accessToken\":\"" + returnedToken + "\"}";
+        Map<String, String> responseMap = new HashMap<>();
+        responseMap.put("accessToken", returnedToken);
+
+        return responseMap;
     }
 
     @Scheduled(fixedRate = 60000)  // Runs every minute
