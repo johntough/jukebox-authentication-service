@@ -31,4 +31,4 @@ jobs:
       - name: SonarCloud Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN -Dsonar.projectProperties=sonar-project.properties
+        run: mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN -Dsonar.projectProperties=./sonar-project.properties
