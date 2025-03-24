@@ -16,6 +16,10 @@
 	<url/>
 	<properties>
 		<java.version>19</java.version>
+		<sonar.projectKey>com.tough:jukebox-authentication-service</sonar.projectKey>
+		<sonar.organization>johntough</sonar.organization>
+		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
+		<sonar.coverage.exclusions>=com/tough/jukebox/authentication/config/**</sonar.coverage.exclusions>
 	</properties>
 	<dependencies>
 		<dependency>
