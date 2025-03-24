@@ -12,7 +12,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpEntity;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,7 +22,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class AuthServiceTest {
+class AuthServiceTest {
 
     @Mock
     VaultService vaultService;
@@ -41,7 +40,7 @@ public class AuthServiceTest {
     AuthService authService;
 
     @Test
-    void testReturnSpotifyLoginRedirectUriSuccessful() throws URISyntaxException {
+    void testReturnSpotifyLoginRedirectUriSuccessful() {
 
         when(spotifyConfig.getSpotifyAppClientId()).thenReturn("test-client-id");
         when(spotifyConfig.getSpotifyRedirectUri()).thenReturn("test-redirect-uri");
@@ -71,7 +70,7 @@ public class AuthServiceTest {
         )).thenReturn(mockResponse);
 
         when(vaultService.readSecret(
-                eq(AuthService.ACCESS_TOKEN_NAME)
+                AuthService.ACCESS_TOKEN_NAME
         )).thenReturn(new VaultResponse());
 
         doNothing().when(vaultService).createSecret(

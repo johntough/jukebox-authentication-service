@@ -49,6 +49,7 @@ public class VaultService {
                 return false;
             }
         } catch (HttpClientErrorException e) {
+            logger.error("HttpClientErrorException when attempting to check Vault Health status: {}", e.getMessage());
             return false;
         }
     }

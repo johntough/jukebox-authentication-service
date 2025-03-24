@@ -41,15 +41,15 @@ class VaultServiceTest {
     @Test
     void testIsHealthyReturnsTrueWhenHealthy() {
 
-        ResponseEntity<String> response = mock(ResponseEntity.class);
-        when(response.getStatusCode()).thenReturn(HttpStatus.OK);
+        when(vaultConfig.getVaultBaseUrl()).thenReturn("http://test-vault-base-url");
+        when(vaultConfig.getVaultSystemHealthPath()).thenReturn("/test-vault-system-health-path/");
 
         when(restTemplate.exchange(
-                any(String.class),
-                eq(HttpMethod.GET),
-                eq(null),
-                eq(String.class))
-        ).thenReturn(response);
+                "http://test-vault-base-url/test-vault-system-health-path/",
+                HttpMethod.GET,
+                null,
+                String.class)
+        ).thenReturn(ResponseEntity.ok("body"));
 
         boolean result = vaultService.isHealthy();
 
@@ -59,48 +59,50 @@ class VaultServiceTest {
     @Test
     void testIsHealthyReturnsFalseWhenUnhealthy() {
 
-        ResponseEntity<String> response = mock(ResponseEntity.class);
-        when(response.getStatusCode()).thenReturn(HttpStatus.NOT_IMPLEMENTED);
+        when(vaultConfig.getVaultBaseUrl()).thenReturn("http://test-vault-base-url");
+        when(vaultConfig.getVaultSystemHealthPath()).thenReturn("/test-vault-system-health-path/");
 
         when(restTemplate.exchange(
-                eq(vaultConfig.getVaultBaseUrl() + vaultConfig.getVaultSystemHealthPath()),
-                eq(HttpMethod.GET),
-                eq(null),
-                eq(String.class))
-        ).thenReturn(response);
+                "http://test-vault-base-url/test-vault-system-health-path/",
+                HttpMethod.GET,
+                null,
+                String.class)
+        ).thenReturn(ResponseEntity.badRequest().body("body"));
 
         boolean result = vaultService.isHealthy();
 
-        assertFalse(result, "Expected Vault to be reported as unhealthy when HTTP status = (501 NOT IMPLEMENTED)");
+        assertFalse(result, "Expected Vault to be reported as unhealthy when HTTP status = (400 BAD REQUEST)");
     }
 
     @Test
     void testIsHealthyReturnsFalseWhenHttpClientErrorException404NotFoundThrown() {
 
+        when(vaultConfig.getVaultBaseUrl()).thenReturn("http://test-vault-base-url");
+        when(vaultConfig.getVaultSystemHealthPath()).thenReturn("/test-vault-system-health-path/");
+
         when(restTemplate.exchange(
-                eq(vaultConfig.getVaultBaseUrl() + vaultConfig.getVaultSystemHealthPath()),
-                eq(HttpMethod.GET),
-                eq(null),
-                eq(String.class))
+                "http://test-vault-base-url/test-vault-system-health-path/",
+                HttpMethod.GET,
+                null,
+                String.class)
         ).thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND, "Not Found"));
 
         boolean result = vaultService.isHealthy();
-
         assertFalse(result, "Expected Vault to be reported as unhealthy when exception is thrown (RuntimeException)");
     }
 
     @Test
     void testIsHealthyReturnsFalseWhenStatusCode301MovedPermanentlyReturned() {
 
-        ResponseEntity<String> response = mock(ResponseEntity.class);
-        when(response.getStatusCode()).thenReturn(HttpStatus.MOVED_PERMANENTLY);
+        when(vaultConfig.getVaultBaseUrl()).thenReturn("http://test-vault-base-url");
+        when(vaultConfig.getVaultSystemHealthPath()).thenReturn("/test-vault-system-health-path/");
 
         when(restTemplate.exchange(
-                eq(vaultConfig.getVaultBaseUrl() + vaultConfig.getVaultSystemHealthPath()),
-                eq(HttpMethod.GET),
-                eq(null),
-                eq(String.class))
-        ).thenReturn(response);
+                "http://test-vault-base-url/test-vault-system-health-path/",
+                HttpMethod.GET,
+                null,
+                String.class)
+        ).thenReturn(new ResponseEntity<>(HttpStatus.MOVED_PERMANENTLY));
 
         boolean result = vaultService.isHealthy();
 
@@ -188,11 +190,6 @@ class VaultServiceTest {
         when(vaultConfig.getVaultBaseUrl()).thenReturn("http://test-vault-base-url");
         when(vaultConfig.getVaultKvV2Path()).thenReturn("/test-vault-kv-path/");
 
-        ResponseEntity<String> response = new ResponseEntity<>(
-                "{\"data\":\"{\"data\":{\"access_token\":\"test-token\", \"refresh_token\": \"test-refresh-token\"}}}",
-                HttpStatus.OK
-        );
-
         when(restTemplate.exchange(
                 eq("http://test-vault-base-url/test-vault-kv-path/test-key"),
                 eq(HttpMethod.GET),
@@ -209,8 +206,8 @@ class VaultServiceTest {
         vaultResponse.setData(data);
 
         when(objectMapper.readValue(
-                eq("{\"data\":\"{\"data\":{\"access_token\":\"test-token\", \"refresh_token\": \"test-refresh-token\"}}}"),
-                eq(VaultResponse.class)
+                "{\"data\":\"{\"data\":{\"access_token\":\"test-token\", \"refresh_token\": \"test-refresh-token\"}}}",
+                VaultResponse.class
         )).thenReturn(vaultResponse);
 
         VaultResponse returnedVaultResponse = vaultService.readSecret("test-key");
@@ -219,7 +216,7 @@ class VaultServiceTest {
     }
 
     @Test
-    void testReadSecretVaultFailureExceptionHandling400BadRequest() throws VaultFailureException, JsonProcessingException {
+    void testReadSecretVaultFailureExceptionHandling400BadRequest() {
 
         when(vaultConfig.getXVaultTokenHeader()).thenReturn("test-vault-token-header");
         when(vaultConfig.getVaultToken()).thenReturn("test-vault-token");
@@ -241,7 +238,7 @@ class VaultServiceTest {
     }
 
     @Test
-    void testReadSecretHttpClientErrorExceptionHandling404NotFound() throws VaultFailureException, JsonProcessingException {
+    void testReadSecretHttpClientErrorExceptionHandling404NotFound() {
 
         when(vaultConfig.getXVaultTokenHeader()).thenReturn("test-vault-token-header");
         when(vaultConfig.getVaultToken()).thenReturn("test-vault-token");
@@ -263,7 +260,7 @@ class VaultServiceTest {
     }
 
     @Test
-    void testReadSecretJsonProcessingExceptionHandling() throws VaultFailureException, JsonProcessingException {
+    void testReadSecretJsonProcessingExceptionHandling() throws JsonProcessingException {
 
         when(vaultConfig.getXVaultTokenHeader()).thenReturn("test-vault-token-header");
         when(vaultConfig.getVaultToken()).thenReturn("test-vault-token");
@@ -278,8 +275,8 @@ class VaultServiceTest {
         )).thenReturn(ResponseEntity.ok("body"));
 
         when(objectMapper.readValue(
-                eq("body"),
-                eq(VaultResponse.class)
+                "body",
+                VaultResponse.class
         )).thenThrow(new JsonParseException("invalid-json"));
 
         VaultFailureException thrown = assertThrows(VaultFailureException.class, () -> {
