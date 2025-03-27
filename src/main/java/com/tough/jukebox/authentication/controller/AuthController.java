@@ -3,6 +3,7 @@ package com.tough.jukebox.authentication.controller;
 import com.tough.jukebox.authentication.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,9 +47,7 @@ public class AuthController {
 
         logger.info("/auth/spotifyAuthorizationCallback request received");
 
-        String jwtToken = extractJwtFromCookies(request);
-
-        Map<String, String> authenticationMap = authService.completeAuthentication(code, jwtToken);
+        Map<String, String> authenticationMap = authService.completeAuthentication(code, extractJwtFromCookies(request));
 
         ResponseCookie cookie = ResponseCookie.from("jwt", authenticationMap.get("jwt"))
                 .httpOnly(true)
@@ -62,12 +62,31 @@ public class AuthController {
                 .build();
     }
 
-    @GetMapping("auth/test")
-    public ResponseEntity<Void> getSpotifyAccessToken(HttpServletRequest request) {
-        logger.info("/auth/test request received");
+    @GetMapping("auth/loginCheck")
+    public ResponseEntity<String> loginCheck(HttpServletRequest request) {
+        logger.info("/auth/loginCheck request received");
 
-        String jwtToken = extractJwtFromCookies(request);
-        logger.info("jwt value: {}", jwtToken);
+        if (extractJwtFromCookies(request) != null) {
+            return ResponseEntity.status(HttpStatus.OK).body("true");
+        } else {
+            return ResponseEntity.status(HttpStatus.OK).body("false");
+        }
+    }
+
+    @PostMapping("auth/logout")
+    public ResponseEntity<Void> logout(HttpServletResponse response, HttpServletRequest request) {
+        logger.info("/auth/logout request received");
+
+        authService.logout(extractJwtFromCookies(request));
+
+        ResponseCookie cookie = ResponseCookie.from("jwt")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(Duration.ZERO)
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         return ResponseEntity.status(HttpStatus.OK).build();
     }

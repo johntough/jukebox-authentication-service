@@ -2,6 +2,8 @@ package com.tough.jukebox.authentication.model;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
+
 @Entity
 public class SpotifyToken {
 
@@ -17,6 +19,9 @@ public class SpotifyToken {
 
     @Column(name = "refresh_token", nullable = false, unique = true)
     private String refreshToken;
+
+    @Column(name = "token_expiry", nullable = false)
+    private Instant tokenExpiry;
 
     public String getRefreshToken() {
         return refreshToken;
@@ -37,4 +42,8 @@ public class SpotifyToken {
     public User getUser() { return user; }
 
     public void setUser(User user) { this.user = user; }
+
+    public Instant getTokenExpiry() { return tokenExpiry; }
+
+    public void setTokenExpiry(Instant tokenExpiry) { this.tokenExpiry = tokenExpiry; }
 }

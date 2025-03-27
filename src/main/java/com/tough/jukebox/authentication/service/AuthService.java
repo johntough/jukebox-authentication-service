@@ -17,8 +17,11 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 
+// TODO: unhappy paths to be added (and wired through to controller)
 @Service
 public class AuthService {
 
@@ -32,8 +35,6 @@ public class AuthService {
     public static final String EXPIRES_IN_NAME = "expires_in";
     public static final String SPOTIFY_RESPONSE_TYPE_CODE = "code";
 
-    private boolean tokenRefreshProcessEnabled = false;
-
     private final RestTemplate restTemplate;
     private final SpotifyConfig spotifyConfig;
     private final WebConfig webConfig;
@@ -41,9 +42,6 @@ public class AuthService {
     private final UserRepository userRepository;
 
     private final JwtUtil jwtUtil;
-
-    // TODO: to be replaced with JWT
-    private String spotifyUserId = "";
 
     @Autowired
     public AuthService(RestTemplate restTemplate, SpotifyConfig serviceConfig, WebConfig webConfig, UserRepository userRepository, JwtUtil jwtUtil) {
@@ -74,7 +72,6 @@ public class AuthService {
         return authenticationMap;
     }
 
-    // TODO: unhappy path to be added (and wired through to controller)
     public String authenticateWithSpotify(String authCode, String jwtToken) {
 
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
@@ -85,30 +82,45 @@ public class AuthService {
         return requestAccessTokenFromSpotify(requestBodyMap, jwtToken);
     }
 
+    public void logout(String jwt) {
+        String spotifyUserId = jwtUtil.getUserIdFromToken(jwt);
+
+        if (!spotifyUserId.isEmpty()) {
+            clearSpotifyTokens(spotifyUserId);
+        } else {
+            logger.error("Unable to extract user from jwt");
+        }
+    }
+
     // TODO: handle refresh of access tokens correctly with database
-//    @Scheduled(fixedRate = 60000)  // Runs every minute
-//    private void checkTokenRefresh() {
-//        if (tokenRefreshProcessEnabled) {
-//            if (expiresIn <= 300) { // 5 minutes
-//                refreshAccessToken();
-//            } else {
-//                expiresIn = expiresIn - 60;
-//            }
-//        }
-//    }
-//
-//    private void refreshAccessToken() {
-//        logger.info("Initiating token refresh process");
-//
-//        userRepository.findBySpotifyUserId(spotifyUserId).ifPresent(user -> {
-//
-//            MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
-//            requestBodyMap.add(GRANT_TYPE_NAME, REFRESH_TOKEN_NAME);
-//            requestBodyMap.add(REFRESH_TOKEN_NAME, user.getSpotifyToken().getRefreshToken());
-//
-//            requestAccessTokenFromSpotify(requestBodyMap);
-//        });
-//    }
+    @Scheduled(fixedRate = 180000)  // Runs every 3 minutes
+    private void checkTokenRefresh() {
+        logger.info("Token refresh loop initiated");
+        userRepository.findAll().forEach(userEntity -> {
+            SpotifyToken token = userEntity.getSpotifyToken();
+
+            if (token != null) {
+                logger.info("Checking access token expiry for User: {}", userEntity.getSpotifyUserId());
+                Duration duration = Duration.between(token.getTokenExpiry(), Instant.now());
+                if (duration.abs().toMinutes() <= 5) {
+                    logger.info("Access token needs refreshing for User: {}", userEntity.getSpotifyUserId());
+                    //refreshAccessToken(userEntity);
+                }
+            }
+        });
+    }
+
+    // TODO: figure out a way of performing the Spotify token refresh without the need for jwt, as per current logic (as this is internally triggered)
+    private void refreshAccessToken(User user) {
+        logger.info("Initiating token refresh process");
+
+        MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
+        requestBodyMap.add(GRANT_TYPE_NAME, REFRESH_TOKEN_NAME);
+        requestBodyMap.add(REFRESH_TOKEN_NAME, user.getSpotifyToken().getRefreshToken());
+
+        requestAccessTokenFromSpotify(requestBodyMap, null);
+
+    }
 
     private String requestAccessTokenFromSpotify(MultiValueMap<String, String> requestBodyMap, String jwtToken) {
         HttpHeaders headers = new HttpHeaders();
@@ -134,40 +146,47 @@ public class AuthService {
                 String accessToken = (String) responseBody.get(ACCESS_TOKEN_NAME);
                 String refreshToken = (String) responseBody.get(REFRESH_TOKEN_NAME);
 
-                // TODO: calculate tokenExpiry correctly and incorporate into database
                 int expiresIn = (int) responseBody.get(EXPIRES_IN_NAME);
-                logger.info("expiresIn: {}", expiresIn);
-                Date tokenExpiry = new Date(System.currentTimeMillis() + (long)expiresIn * 1000);
-                logger.info("Access token tokenExpiry: {}", tokenExpiry);
-                tokenRefreshProcessEnabled = true;
+                Instant tokenExpiry = Instant.now().plusSeconds(expiresIn);
 
-                jwt = checkAndCreateUser(accessToken, refreshToken, jwtToken);
+                jwt = checkAndCreateUser(accessToken, refreshToken, tokenExpiry, jwtToken);
             }
         }
 
         return jwt;
     }
 
-    private String checkAndCreateUser(String accessToken, String refreshToken, String jwtToken) {
+    private String checkAndCreateUser(String accessToken, String refreshToken, Instant tokenExpiry, String jwtToken) {
 
         String spotifyUserId = jwtUtil.getUserIdFromToken(jwtToken);
-        logger.info("spotifyUserId extracted from jwt: {}", spotifyUserId);
+
         if (spotifyUserId.isEmpty()) {
-            logger.info("First time login. User does not exist");
+            logger.info("No session exists for User");
             User user = fetchSpotifyUserDetails(accessToken);
 
             if (user != null) {
-                logger.info("User {} returned from Spotify. User details will now be saved.", user.getDisplayName());
-                saveUserEntity(user, accessToken, refreshToken);
+                logger.info("User {} returned from Spotify.", user.getSpotifyUserId());
+
+                // check if user exists in database (i.e. has previously logged in) and update
+                userRepository.findBySpotifyUserId(user.getSpotifyUserId()).ifPresentOrElse(
+                        userEntity -> {
+                            saveUserEntity(userEntity, accessToken, tokenExpiry, refreshToken);
+                            logger.info("New access tokens created for existing User: {}.", userEntity.getSpotifyUserId());
+                        }, () -> {
+                            saveUserEntity(user, accessToken, tokenExpiry, refreshToken);
+                            logger.info("New user (and access tokens) created for User: {}.", user.getSpotifyUserId());
+                        }
+                );
+
                 return jwtUtil.createToken(user.getSpotifyUserId());
             } else {
                 logger.error("No user returned from Spotify");
             }
         } else {
-            logger.info("User {} exists", spotifyUserId);
-            userRepository.findBySpotifyUserId(spotifyUserId).ifPresent(user -> {
-                saveUserEntity(user, accessToken, refreshToken);
+            userRepository.findBySpotifyUserId(spotifyUserId).ifPresent(userEntity -> {
+                saveUserEntity(userEntity, accessToken, tokenExpiry, refreshToken);
             });
+            logger.info("Session exists for User: {}. Access tokens updated.", spotifyUserId);
         }
         return jwtToken;
     }
@@ -190,7 +209,7 @@ public class AuthService {
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody != null) {
-                spotifyUserId = (String) responseBody.get("id");
+                String spotifyUserId = (String) responseBody.get("id");
                 String email = (String) responseBody.get("email");
                 String displayName = (String) responseBody.get("display_name");
 
@@ -205,12 +224,21 @@ public class AuthService {
         return null;
     }
 
-    private void saveUserEntity(User user, String accessToken, String refreshToken) {
+    private void clearSpotifyTokens(String spotifyUserId) {
+        userRepository.findBySpotifyUserId(spotifyUserId).ifPresent(user -> {
+            user.setSpotifyToken(null);
+            User userEntity = userRepository.save(user);
+            logger.info("User's Spotify tokens cleared: {}:", userEntity.getDisplayName());
+        });
+    }
+
+    private void saveUserEntity(User user, String accessToken, Instant tokenExpiry, String refreshToken) {
 
         SpotifyToken spotifyToken = new SpotifyToken();
         spotifyToken.setAccessToken(accessToken);
+        spotifyToken.setTokenExpiry(tokenExpiry);
 
-        logger.info("Spotify access token: {}", accessToken);
+        logger.info("Spotify access token valid until: {}", tokenExpiry);
 
         if (!refreshToken.isEmpty()) {
             spotifyToken.setRefreshToken(refreshToken);
@@ -218,7 +246,6 @@ public class AuthService {
 
         user.setSpotifyToken(spotifyToken);
 
-        User userEntity = userRepository.save(user);
-        logger.info("User updated: {}:", userEntity.getDisplayName());
+        userRepository.save(user);
     }
 }
