@@ -77,7 +77,7 @@ public class AuthController {
     public ResponseEntity<Void> logout(HttpServletResponse response, HttpServletRequest request) {
         logger.info("/auth/logout request received");
 
-        authService.logout(extractJwtFromCookies(request));
+        boolean success = authService.logOut(extractJwtFromCookies(request));
 
         ResponseCookie cookie = ResponseCookie.from("jwt")
                 .httpOnly(true)
@@ -88,6 +88,7 @@ public class AuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
+        // TODO: unhappy path to be added
         return ResponseEntity.status(HttpStatus.OK).build();
     }
 

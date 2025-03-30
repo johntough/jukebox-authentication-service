@@ -24,11 +24,6 @@ public class JwtUtil {
         this.securityConfig = securityConfig;
     }
 
-    private SecretKey createSecretKey() {
-        byte[] keyBytes = securityConfig.getSecretKey().getBytes();
-        return new SecretKeySpec(keyBytes, "HmacSHA256");
-    }
-
     public String createToken(String userId) {
 
         logger.info("Creating JWT token for User ID: {}", userId);
@@ -58,6 +53,11 @@ public class JwtUtil {
         } else {
             return "";
         }
+    }
+
+    private SecretKey createSecretKey() {
+        byte[] keyBytes = securityConfig.getSecretKey().getBytes();
+        return new SecretKeySpec(keyBytes, "HmacSHA256");
     }
 
     private boolean isTokenExpired(String token) {
