@@ -22,13 +22,9 @@ public class User {
     @Column(name = "displayName", nullable = false, unique = true)
     private String displayName;
 
-    public String getEmailAddress() {
-        return emailAddress;
-    }
+    public String getEmailAddress() { return emailAddress; }
 
-    public void setEmailAddress(String emailAddress) {
-        this.emailAddress = emailAddress;
-    }
+    public void setEmailAddress(String emailAddress) { this.emailAddress = emailAddress; }
 
     public String getDisplayName() { return displayName; }
 
