@@ -5,7 +5,6 @@ target/
 !**/src/test/**/target/
 
 auth-service/.env
-vault/.env
 
 ### STS ###
 .apt_generated

@@ -18,9 +18,10 @@ public class SpotifyConfig {
     @Value(value = "${SPOTIFY_TOKEN_URI}")
     private String spotifyTokenUri;
 
-    public String getSpotifyRedirectUri() {
-        return spotifyRedirectUri;
-    }
+    @Value(value = "${SPOTIFY_CURRENT_USER_URI}")
+    private String spotifyCurrentUserUri;
+
+    public String getSpotifyRedirectUri() { return spotifyRedirectUri; }
 
     public String getSpotifyAppClientId() {
         return spotifyAppClientId;
@@ -31,4 +32,8 @@ public class SpotifyConfig {
     }
 
     public String getSpotifyTokenUri() { return spotifyTokenUri; }
+
+    public String getSpotifyCurrentUserUri() { return spotifyCurrentUserUri; }
+
+    public void setSpotifyCurrentUserUri(String spotifyCurrentUserUri) { this.spotifyCurrentUserUri = spotifyCurrentUserUri; }
 }

@@ -1,5 +1,13 @@
 spring:
   application:
     name: "jukebox-authentication-service"
+  datasource:
+    url: jdbc:sqlite:/data/jukebox.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
 server:
   port: 3001
