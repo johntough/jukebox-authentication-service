@@ -1,7 +1,8 @@
-package com.tough.jukebox.authentication.util;
+package com.tough.jukebox.authentication.security;
 
 import com.tough.jukebox.authentication.config.SecurityConfig;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,11 +12,12 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.util.Date;
+import java.util.List;
 
 @Component
 public class JwtUtil {
 
-    private static final Logger logger = LoggerFactory.getLogger(JwtUtil.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(JwtUtil.class);
 
     private final SecurityConfig securityConfig;
 
@@ -26,18 +28,28 @@ public class JwtUtil {
 
     public String createToken(String userId) {
 
-        logger.info("Creating JWT token for User ID: {}", userId);
+        LOGGER.info("Creating JWT token for User ID: {}", userId);
 
         return Jwts.builder()
                 .subject(userId)
+                .claim("roles", List.of("ROLE_USER"))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60))
                 .signWith(createSecretKey())
                 .compact();
     }
 
-    public boolean validateToken(String token, String userId) {
-        return userId.equals(getUserIdFromToken(token)) && !isTokenExpired(token);
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser()
+                    .verifyWith(createSecretKey())
+                    .build()
+                    .parseSignedClaims(token);
+            // TODO: add in expiry check
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     public String getUserIdFromToken(String token) {

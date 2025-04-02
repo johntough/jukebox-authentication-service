@@ -4,7 +4,7 @@ import com.tough.jukebox.authentication.config.SpotifyConfig;
 import com.tough.jukebox.authentication.config.WebConfig;
 import com.tough.jukebox.authentication.model.SpotifyToken;
 import com.tough.jukebox.authentication.model.User;
-import com.tough.jukebox.authentication.util.JwtUtil;
+import com.tough.jukebox.authentication.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,8 +97,6 @@ public class AuthService {
 
             if (user != null) {
                 LOGGER.info("User returned from Spotify: {}", user.getSpotifyUserId());
-
-                // TODO: up to here in unit test
                 // check if user exists in database (i.e. has previously logged in) and update
                 userService.getUserBySpotifyUserId(user.getSpotifyUserId()).ifPresentOrElse(
                         userEntity -> {

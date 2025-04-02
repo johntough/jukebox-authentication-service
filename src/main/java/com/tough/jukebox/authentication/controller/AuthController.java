@@ -1,16 +1,12 @@
 package com.tough.jukebox.authentication.controller;
 
 import com.tough.jukebox.authentication.service.AuthService;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +20,9 @@ public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
+    private static final String JWT_LABEL = "jwt";
+    private static final String REDIRECT_URI_LABEL = "redirectUri";
+
     private final AuthService authService;
 
     @Autowired
@@ -31,15 +30,18 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @GetMapping("/auth/spotifyRedirectParams")
+    @GetMapping("auth/spotifyRedirectParams")
     public ResponseEntity<Map<String, String>> getSpotifyRedirectParams() {
 
         logger.info("/auth/spotifyRedirectParams request received");
 
         Map<String, String> params = authService.getSpotifyRedirectParams();
 
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(params);
+        if (params != null && !params.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(params);
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     @GetMapping("auth/spotifyAuthorizationCallback")
@@ -47,39 +49,38 @@ public class AuthController {
 
         logger.info("/auth/spotifyAuthorizationCallback request received");
 
-        Map<String, String> authenticationMap = authService.completeAuthentication(code, extractJwtFromCookies(request));
+        Map<String, String> authenticationMap = authService.completeAuthentication(code, (String)request.getAttribute(JWT_LABEL));
 
-        ResponseCookie cookie = ResponseCookie.from("jwt", authenticationMap.get("jwt"))
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(Duration.ofHours(1))
-                .build();
+        if (authenticationMap.get(JWT_LABEL) == null || authenticationMap.isEmpty() || authenticationMap.get(REDIRECT_URI_LABEL) == null || authenticationMap.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } else {
+            ResponseCookie cookie = ResponseCookie.from(JWT_LABEL, authenticationMap.get(JWT_LABEL))
+                    .httpOnly(true)
+                    .secure(false)
+                    .path("/")
+                    .maxAge(Duration.ofHours(1))
+                    .build();
 
-        return ResponseEntity.status(HttpStatus.SEE_OTHER)
-                .header(HttpHeaders.LOCATION, authenticationMap.get("redirectUri"))
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .build();
+            return ResponseEntity.status(HttpStatus.SEE_OTHER)
+                    .header(HttpHeaders.LOCATION, authenticationMap.get(REDIRECT_URI_LABEL))
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .build();
+        }
     }
 
     @GetMapping("auth/loginCheck")
-    public ResponseEntity<String> loginCheck(HttpServletRequest request) {
+    public ResponseEntity<Void> loginCheck(HttpServletRequest request) {
         logger.info("/auth/loginCheck request received");
-
-        if (extractJwtFromCookies(request) != null) {
-            return ResponseEntity.status(HttpStatus.OK).body("true");
-        } else {
-            return ResponseEntity.status(HttpStatus.OK).body("false");
-        }
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 
     @PostMapping("auth/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response, HttpServletRequest request) {
         logger.info("/auth/logout request received");
 
-        boolean success = authService.logOut(extractJwtFromCookies(request));
+        boolean userLogoutSuccess = authService.logOut((String)request.getAttribute(JWT_LABEL));
 
-        ResponseCookie cookie = ResponseCookie.from("jwt")
+        ResponseCookie cookie = ResponseCookie.from(JWT_LABEL)
                 .httpOnly(true)
                 .secure(false)
                 .path("/")
@@ -88,20 +89,6 @@ public class AuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        // TODO: unhappy path to be added
-        return ResponseEntity.status(HttpStatus.OK).build();
-    }
-
-    private String extractJwtFromCookies(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("jwt".equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        return null;
+        return ResponseEntity.status(userLogoutSuccess ? HttpStatus.OK : HttpStatus.NOT_FOUND).build();
     }
 }

@@ -4,7 +4,7 @@ import com.tough.jukebox.authentication.config.SpotifyConfig;
 import com.tough.jukebox.authentication.config.WebConfig;
 import com.tough.jukebox.authentication.model.SpotifyToken;
 import com.tough.jukebox.authentication.model.User;
-import com.tough.jukebox.authentication.util.JwtUtil;
+import com.tough.jukebox.authentication.security.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -42,7 +42,7 @@ class AuthServiceTest {
     private AuthService authService;
 
     @Test
-    void testReturnSpotifyLoginRedirectUriSuccessful() {
+    void testGetSpotifyRedirectParamsSuccessful() {
         when(spotifyConfig.getSpotifyAppClientId()).thenReturn("test-client-id");
         when(spotifyConfig.getSpotifyRedirectUri()).thenReturn("test-redirect-uri");
 
