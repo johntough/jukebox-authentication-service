@@ -5,6 +5,7 @@ target/
 !**/src/test/**/target/
 
 auth-service/.env
+:memory
 
 ### STS ###
 .apt_generated

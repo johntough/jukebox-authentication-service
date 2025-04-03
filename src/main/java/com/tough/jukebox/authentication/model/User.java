@@ -22,6 +22,8 @@ public class User {
     @Column(name = "displayName", nullable = false, unique = true)
     private String displayName;
 
+    public Long getId() { return id; }
+
     public String getEmailAddress() { return emailAddress; }
 
     public void setEmailAddress(String emailAddress) { this.emailAddress = emailAddress; }
