@@ -1,6 +1,7 @@
 package com.tough.jukebox.authentication.service;
 
 import com.tough.jukebox.authentication.config.SpotifyConfig;
+import com.tough.jukebox.authentication.exception.SpotifyAPIException;
 import com.tough.jukebox.authentication.model.SpotifyToken;
 import com.tough.jukebox.authentication.model.User;
 import org.slf4j.Logger;
@@ -40,7 +41,7 @@ public class SpotifyAPIService {
         this.spotifyConfig = spotifyConfig;
     }
 
-    public SpotifyToken refreshAccessToken(String refreshToken) {
+    public SpotifyToken refreshAccessToken(String refreshToken) throws SpotifyAPIException {
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
         requestBodyMap.add(GRANT_TYPE_LABEL, REFRESH_TOKEN_LABEL);
         requestBodyMap.add(REFRESH_TOKEN_LABEL, refreshToken);
@@ -48,7 +49,7 @@ public class SpotifyAPIService {
         return requestAccessToken(requestBodyMap);
     }
 
-    public User fetchUserDetails(String accessToken) {
+    public User fetchUserDetails(String accessToken) throws SpotifyAPIException {
 
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
@@ -62,26 +63,29 @@ public class SpotifyAPIService {
                 new ParameterizedTypeReference<>() {}
         );
 
-        if (response.getStatusCode().is2xxSuccessful()) {
-            Map<String, Object> responseBody = response.getBody();
-
-            if (responseBody != null) {
-                String spotifyUserId = (String) responseBody.get("id");
-                String email = (String) responseBody.get("email");
-                String displayName = (String) responseBody.get("display_name");
-
-                User user = new User();
-                user.setSpotifyUserId(spotifyUserId);
-                user.setDisplayName(displayName);
-                user.setEmailAddress(email);
-                return user;
-            }
-        }
-
-        return null;
+        User user = getUserFromSpotifyResponse(response);
+        LOGGER.info("User returned from Spotify: {}", user.getSpotifyUserId());
+        return user;
     }
 
-    public SpotifyToken authenticate(String authCode) {
+    private User getUserFromSpotifyResponse(ResponseEntity<Map<String, Object>> response) throws SpotifyAPIException {
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new SpotifyAPIException("No User returned from Spotify");
+        }
+
+        Map<String, Object> responseBody = response.getBody();
+        String spotifyUserId = (String) responseBody.get("id");
+        String email = (String) responseBody.get("email");
+        String displayName = (String) responseBody.get("display_name");
+
+        User user = new User();
+        user.setSpotifyUserId(spotifyUserId);
+        user.setDisplayName(displayName);
+        user.setEmailAddress(email);
+        return user;
+    }
+
+    public SpotifyToken authenticate(String authCode) throws SpotifyAPIException {
         MultiValueMap<String, String> requestBodyMap = new LinkedMultiValueMap<>();
         requestBodyMap.add(REDIRECT_URI_LABEL, spotifyConfig.getSpotifyRedirectUri());
         requestBodyMap.add(GRANT_TYPE_LABEL, AUTHORIZATION_CODE_LABEL);
@@ -90,7 +94,7 @@ public class SpotifyAPIService {
         return requestAccessToken(requestBodyMap);
     }
 
-    private SpotifyToken requestAccessToken(MultiValueMap<String, String> requestBodyMap) {
+    private SpotifyToken requestAccessToken(MultiValueMap<String, String> requestBodyMap) throws SpotifyAPIException {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         headers.setBasicAuth(Base64.getEncoder().encodeToString((spotifyConfig.getSpotifyAppClientId() + ":" + spotifyConfig.getSpotifyAppClientSecret()).getBytes()));
@@ -118,8 +122,7 @@ public class SpotifyAPIService {
                 );
             }
         } else {
-            LOGGER.error("Spotify token could not be retrieved from the Spotify API");
-            // TODO: implement unhappy path
+            throw new SpotifyAPIException("Spotify token could not be retrieved from the Spotify API");
         }
         return spotifyToken;
     }

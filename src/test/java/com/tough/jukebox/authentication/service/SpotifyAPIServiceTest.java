@@ -1,6 +1,7 @@
 package com.tough.jukebox.authentication.service;
 
 import com.tough.jukebox.authentication.config.SpotifyConfig;
+import com.tough.jukebox.authentication.exception.SpotifyAPIException;
 import com.tough.jukebox.authentication.model.SpotifyToken;
 import com.tough.jukebox.authentication.model.User;
 import org.junit.jupiter.api.Test;
@@ -32,8 +33,8 @@ class SpotifyAPIServiceTest {
     SpotifyAPIService spotifyAPIService;
 
     @Test
-    void testRefreshAccessTokenSuccess() {
-        mockSpotifyTokenRefreshResponse();
+    void testRefreshAccessTokenSuccess() throws SpotifyAPIException {
+        mockSpotifyTokenRefreshResponse(HttpStatus.OK);
 
         SpotifyToken token = spotifyAPIService.refreshAccessToken("test-refresh-token");
 
@@ -43,7 +44,16 @@ class SpotifyAPIServiceTest {
     }
 
     @Test
-    void testFetchUserDetailsSuccess() {
+    void testRefreshAccessTokenFailureThrowsSpotifyAPIException() {
+        mockSpotifyTokenRefreshResponse(HttpStatus.NOT_FOUND);
+
+        assertThrows(SpotifyAPIException.class, () -> {
+            spotifyAPIService.refreshAccessToken("test-refresh-token");
+        });
+    }
+
+    @Test
+    void testFetchUserDetailsSuccess() throws SpotifyAPIException {
         when(spotifyConfig.getSpotifyCurrentUserUri()).thenReturn("http://test-spotify-user-uri");
 
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(
@@ -69,7 +79,7 @@ class SpotifyAPIServiceTest {
     }
 
     @Test
-    void testFetchUserDetailsFailureEmptyBody() {
+    void testFetchUserDetailsFailureEmptyBody() throws SpotifyAPIException {
         when(spotifyConfig.getSpotifyCurrentUserUri()).thenReturn("http://test-spotify-user-uri");
 
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(
@@ -83,9 +93,7 @@ class SpotifyAPIServiceTest {
                 eq(new ParameterizedTypeReference<Map<String, Object>>() {})
         )).thenReturn(responseEntity);
 
-        User user = spotifyAPIService.fetchUserDetails("test-access-token");
-
-        assertNull(user);
+        assertThrows(SpotifyAPIException.class, () -> spotifyAPIService.fetchUserDetails("test-access-token"));
     }
 
     @Test
@@ -103,14 +111,21 @@ class SpotifyAPIServiceTest {
                 eq(new ParameterizedTypeReference<Map<String, Object>>() {})
         )).thenReturn(responseEntity);
 
-        User user = spotifyAPIService.fetchUserDetails("test-access-token");
-
-        assertNull(user);
+        assertThrows(SpotifyAPIException.class, () -> spotifyAPIService.fetchUserDetails("test-access-token"));
     }
 
     @Test
-    void testAuthenticateSuccess() {
-        mockSpotifyTokenRefreshResponse();
+    void testAuthenticateFailureThrowsSpotifyAPIException()  {
+        mockSpotifyTokenRefreshResponse(HttpStatus.NOT_FOUND);
+
+        assertThrows(SpotifyAPIException.class, () ->
+                spotifyAPIService.authenticate("test-auth-code")
+        );
+    }
+
+    @Test
+    void testAuthenticateSuccess() throws SpotifyAPIException {
+        mockSpotifyTokenRefreshResponse(HttpStatus.OK);
 
         SpotifyToken token = spotifyAPIService.authenticate("test-auth-code");
 
@@ -119,7 +134,7 @@ class SpotifyAPIServiceTest {
         assertTrue(token.getTokenExpiry().isAfter(Instant.now()));
     }
 
-    private void mockSpotifyTokenRefreshResponse() {
+    private void mockSpotifyTokenRefreshResponse(HttpStatus status) {
         when(spotifyConfig.getSpotifyTokenUri()).thenReturn("http://test-spotify-token-uri");
 
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(
@@ -128,7 +143,7 @@ class SpotifyAPIServiceTest {
                         "access_token", "test-access-token",
                         "refresh_token", "test-refresh-token"
                 ),
-                HttpStatus.OK);
+                status);
 
         when(restTemplate.exchange(
                 eq("http://test-spotify-token-uri"),

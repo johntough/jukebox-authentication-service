@@ -41,9 +41,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
             } else {
                 LOGGER.info("JWT validation failed for {}, returning 401 UNAUTHORIZED.", requestURI);
-                response.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:3000");  // Adjust the frontend URL as needed
-                response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");  // Allow methods
-                response.setHeader("Access-Control-Allow-Headers", "*");  // Allow all headers
+                response.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:3000");
+                response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                response.setHeader("Access-Control-Allow-Headers", "*");
                 response.setHeader("Access-Control-Allow-Credentials", "true");
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             }
