@@ -4,7 +4,7 @@ import com.tough.jukebox.authentication.config.SecurityConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.SecureDigestAlgorithm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,18 +41,20 @@ public class JwtUtil {
                 .claim("roles", List.of("ROLE_USER"))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60))
-                .signWith(createPrivateKey(), SignatureAlgorithm.RS256)
+                .signWith(createPrivateKey())
                 .compact();
     }
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parser()
+            Claims claims = Jwts.parser()
                     .verifyWith(getPublicKey())
                     .build()
-                    .parseSignedClaims(token);
-            // TODO: add in expiry check
-            return true;
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            return !claims.getExpiration().before(new Date());
+
         } catch (JwtException | IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException e) {
             return false;
         }

@@ -79,7 +79,7 @@ class SpotifyAPIServiceTest {
     }
 
     @Test
-    void testFetchUserDetailsFailureEmptyBody() throws SpotifyAPIException {
+    void testFetchUserDetailsFailureEmptyBody() {
         when(spotifyConfig.getSpotifyCurrentUserUri()).thenReturn("http://test-spotify-user-uri");
 
         ResponseEntity<Map<String, Object>> responseEntity = new ResponseEntity<>(
