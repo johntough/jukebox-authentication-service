@@ -4,7 +4,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-auth-service/.env
+auth-service/*
 :memory
 
 ### STS ###

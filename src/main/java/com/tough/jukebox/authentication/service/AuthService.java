@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -54,21 +56,25 @@ public class AuthService {
                     incomingJwt)
             );
             return authenticationMap;
-        } catch (SpotifyAPIException | UserSessionException exception) {
+        } catch (SpotifyAPIException | UserSessionException | NoSuchAlgorithmException | InvalidKeySpecException exception) {
             LOGGER.error(exception.getMessage());
             return new HashMap<>();
         }
     }
 
     public boolean logOut(String jwt) {
-        String spotifyUserId = jwtUtil.getUserIdFromToken(jwt);
+        try {
+            String spotifyUserId = jwtUtil.getUserIdFromToken(jwt);
 
-        if (spotifyUserId.isEmpty()) {
-            LOGGER.error("Unable to extract user from jwt");
+            if (spotifyUserId.isEmpty()) {
+                LOGGER.error("Unable to extract user from jwt");
+                return false;
+            }
+            return userService.clearUserTokens(spotifyUserId);
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            LOGGER.error("Error when extracting user from jwt: {}", e.getMessage());
             return false;
         }
-
-        return userService.clearUserTokens(spotifyUserId);
     }
 
     @Scheduled(fixedRate = 180000)  // Runs every 3 minutes
@@ -95,7 +101,7 @@ public class AuthService {
         }
     }
 
-    private String checkAndCreateUser(SpotifyToken newSpotifyToken, String jwtToken) throws SpotifyAPIException, UserSessionException {
+    private String checkAndCreateUser(SpotifyToken newSpotifyToken, String jwtToken) throws SpotifyAPIException, UserSessionException, NoSuchAlgorithmException, InvalidKeySpecException {
 
         String spotifyUserId = jwtUtil.getUserIdFromToken(jwtToken);
 

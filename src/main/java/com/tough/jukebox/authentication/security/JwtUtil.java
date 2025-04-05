@@ -4,13 +4,19 @@ import com.tough.jukebox.authentication.config.SecurityConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 
@@ -26,7 +32,7 @@ public class JwtUtil {
         this.securityConfig = securityConfig;
     }
 
-    public String createToken(String userId) {
+    public String createToken(String userId) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         LOGGER.info("Creating JWT token for User ID: {}", userId);
 
@@ -35,28 +41,28 @@ public class JwtUtil {
                 .claim("roles", List.of("ROLE_USER"))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60))
-                .signWith(createSecretKey())
+                .signWith(createPrivateKey(), SignatureAlgorithm.RS256)
                 .compact();
     }
 
     public boolean validateToken(String token) {
         try {
             Jwts.parser()
-                    .verifyWith(createSecretKey())
+                    .verifyWith(getPublicKey())
                     .build()
                     .parseSignedClaims(token);
             // TODO: add in expiry check
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
+        } catch (JwtException | IllegalArgumentException | NoSuchAlgorithmException | InvalidKeySpecException e) {
             return false;
         }
     }
 
-    public String getUserIdFromToken(String token) {
+    public String getUserIdFromToken(String token) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         if (token != null && !token.isEmpty()) {
             Claims claims = Jwts.parser()
-                    .verifyWith(createSecretKey())
+                    .verifyWith(getPublicKey())
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
@@ -67,19 +73,30 @@ public class JwtUtil {
         }
     }
 
-    private SecretKey createSecretKey() {
-        byte[] keyBytes = securityConfig.getSecretKey().getBytes();
-        return new SecretKeySpec(keyBytes, "HmacSHA256");
+    private RSAPrivateKey createPrivateKey() throws NoSuchAlgorithmException, InvalidKeySpecException {
+
+        byte[] privateKeyBytes = Base64.getDecoder().decode(securityConfig.getPrivateKey());
+
+        return (RSAPrivateKey) KeyFactory.getInstance("RSA")
+                .generatePrivate(new PKCS8EncodedKeySpec(privateKeyBytes));
     }
 
-    private boolean isTokenExpired(String token) {
+    private RSAPublicKey getPublicKey() throws NoSuchAlgorithmException, InvalidKeySpecException {
+
+        byte[] publicKeyBytes = Base64.getDecoder().decode(securityConfig.getPublicKey());
+
+        return (RSAPublicKey) KeyFactory.getInstance("RSA")
+                .generatePublic(new X509EncodedKeySpec(publicKeyBytes));
+    }
+
+    private boolean isTokenExpired(String token) throws NoSuchAlgorithmException, InvalidKeySpecException {
         return getExpirationDateFromToken(token).before(new Date());
     }
 
-    private Date getExpirationDateFromToken(String token) {
+    private Date getExpirationDateFromToken(String token) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         Claims claims = Jwts.parser()
-                .verifyWith(createSecretKey())
+                .verifyWith(getPublicKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

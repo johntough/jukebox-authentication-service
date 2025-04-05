@@ -6,8 +6,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SecurityConfig {
 
-    @Value(value = "${JWT_SECRET_KEY}")
-    private String secretKey;
+    @Value(value = "${PRIVATE_KEY}")
+    private String privateKey;
 
-    public String getSecretKey() { return secretKey; }
+    @Value(value = "${PUBLIC_KEY}")
+    private String publicKey;
+
+    public String getPrivateKey() { return privateKey; }
+
+    public String getPublicKey() { return publicKey; }
 }

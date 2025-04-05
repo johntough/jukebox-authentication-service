@@ -12,6 +12,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,7 +56,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testLogoutSuccess() {
+    void testLogoutSuccess() throws NoSuchAlgorithmException, InvalidKeySpecException {
         when(jwtUtil.getUserIdFromToken("test-jwt")).thenReturn("test-user-id");
         when(userService.clearUserTokens("test-user-id")).thenReturn(true);
 
@@ -64,7 +66,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testLogoutFailureEmptyJwt() {
+    void testLogoutFailureEmptyJwt() throws NoSuchAlgorithmException, InvalidKeySpecException {
         when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("");
 
         boolean success = authService.logOut("");
@@ -73,7 +75,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testLogoutFailureUserNotFound() {
+    void testLogoutFailureUserNotFound() throws NoSuchAlgorithmException, InvalidKeySpecException {
         when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("test-user-id");
         when(userService.clearUserTokens(anyString())).thenReturn(false);
 
@@ -83,7 +85,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testCompleteAuthenticationNewUserProfileSuccess() throws SpotifyAPIException {
+    void testCompleteAuthenticationNewUserProfileSuccess() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
         SpotifyToken spotifyToken = mockSpotifyAPIAuthenticate();
 
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
@@ -108,7 +110,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testCompleteAuthenticationExistingUserNewSessionSuccess() throws SpotifyAPIException {
+    void testCompleteAuthenticationExistingUserNewSessionSuccess() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
         SpotifyToken spotifyToken = mockSpotifyAPIAuthenticate();
 
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
@@ -133,7 +135,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testCompleteAuthenticationExistingUserSessionSuccess() throws SpotifyAPIException {
+    void testCompleteAuthenticationExistingUserSessionSuccess() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
         SpotifyToken spotifyToken = mockSpotifyAPIAuthenticate();
 
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
@@ -152,7 +154,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testCompleteAuthenticationFailureNoUserReturnedFromSpotify() throws SpotifyAPIException {
+    void testCompleteAuthenticationFailureNoUserReturnedFromSpotify() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
 
         mockSpotifyAPIAuthenticate();
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
@@ -166,7 +168,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testCompleteAuthenticationFailureNoSessionFoundForExistingUser() throws SpotifyAPIException {
+    void testCompleteAuthenticationFailureNoSessionFoundForExistingUser() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
 
         mockSpotifyAPIAuthenticate();
 
