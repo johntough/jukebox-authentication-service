@@ -17,6 +17,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class SpotifyAPIService {
@@ -73,7 +74,8 @@ public class SpotifyAPIService {
             throw new SpotifyAPIException("No User returned from Spotify");
         }
 
-        Map<String, Object> responseBody = response.getBody();
+        Map<String, Object> responseBody = Objects.requireNonNull(response.getBody(), "Response body is unexpectedly null");
+
         String spotifyUserId = (String) responseBody.get("id");
         String email = (String) responseBody.get("email");
         String displayName = (String) responseBody.get("display_name");
@@ -111,16 +113,15 @@ public class SpotifyAPIService {
         SpotifyToken spotifyToken = new SpotifyToken();
 
         if (response.getStatusCode().is2xxSuccessful()) {
-            Map<String, Object> responseBody = response.getBody();
 
-            if (responseBody != null) {
-                String refreshToken = (String) responseBody.get(REFRESH_TOKEN_LABEL);
-                spotifyToken.setRefreshToken((refreshToken == null ? "" : refreshToken));
-                spotifyToken.setAccessToken((String) responseBody.get(ACCESS_TOKEN_LABEL));
-                spotifyToken.setTokenExpiry(
-                        Instant.now().plusSeconds( (int) responseBody.get(EXPIRES_IN_LABEL))
-                );
-            }
+            Map<String, Object> responseBody = Objects.requireNonNull(response.getBody(), "Response body is unexpectedly null");
+
+            String refreshToken = (String) responseBody.get(REFRESH_TOKEN_LABEL);
+            spotifyToken.setRefreshToken((refreshToken == null ? "" : refreshToken));
+            spotifyToken.setAccessToken((String) responseBody.get(ACCESS_TOKEN_LABEL));
+            spotifyToken.setTokenExpiry(
+                    Instant.now().plusSeconds( (int) responseBody.get(EXPIRES_IN_LABEL))
+            );
         } else {
             throw new SpotifyAPIException("Spotify token could not be retrieved from the Spotify API");
         }
