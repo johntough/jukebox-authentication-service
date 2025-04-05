@@ -4,7 +4,6 @@ import com.tough.jukebox.authentication.config.SecurityConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.SecureDigestAlgorithm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,20 +88,5 @@ public class JwtUtil {
 
         return (RSAPublicKey) KeyFactory.getInstance("RSA")
                 .generatePublic(new X509EncodedKeySpec(publicKeyBytes));
-    }
-
-    private boolean isTokenExpired(String token) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        return getExpirationDateFromToken(token).before(new Date());
-    }
-
-    private Date getExpirationDateFromToken(String token) throws NoSuchAlgorithmException, InvalidKeySpecException {
-
-        Claims claims = Jwts.parser()
-                .verifyWith(getPublicKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return claims.getExpiration();
     }
 }
