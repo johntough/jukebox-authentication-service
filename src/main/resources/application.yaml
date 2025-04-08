@@ -2,7 +2,7 @@ spring:
   application:
     name: "jukebox-authentication-service"
   datasource:
-    url: jdbc:sqlite:/data/jukebox.db
+    url: jdbc:sqlite:/data/jukebox.sqlite
     driver-class-name: org.sqlite.JDBC
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
