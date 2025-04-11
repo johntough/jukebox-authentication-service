@@ -43,7 +43,7 @@ public class UserService {
                 .orElse(false);
     }
 
-    public void updateUserTokens(User user, SpotifyToken newSpotifyToken) {
+    public void updateSpotifyTokens(User user, SpotifyToken newSpotifyToken) {
         SpotifyToken spotifyToken = Optional.ofNullable(user.getSpotifyToken())
                 .orElse(new SpotifyToken());
 

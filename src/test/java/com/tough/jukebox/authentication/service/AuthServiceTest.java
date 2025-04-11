@@ -89,18 +89,17 @@ class AuthServiceTest {
         SpotifyToken spotifyToken = mockSpotifyAPIAuthenticate();
 
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
-        when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("");
 
         User user = new User();
         user.setSpotifyUserId("test-spotify-user-id");
         when(spotifyAPIService.fetchUserDetails(any(String.class))).thenReturn(user);
 
         when(userService.getUserBySpotifyUserId(anyString())).thenReturn(Optional.empty());
-        doNothing().when(userService).updateUserTokens(user, spotifyToken);
+        doNothing().when(userService).updateSpotifyTokens(user, spotifyToken);
 
         when(jwtUtil.createToken(anyString())).thenReturn("test-jwt");
 
-        Map<String, String> response = authService.completeAuthentication("spotify-auth-code", "");
+        Map<String, String> response = authService.completeAuthentication("spotify-auth-code");
 
         Map<String, String> authenticationMap = new HashMap<>();
         authenticationMap.put("jwt", "test-jwt");
@@ -114,37 +113,17 @@ class AuthServiceTest {
         SpotifyToken spotifyToken = mockSpotifyAPIAuthenticate();
 
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
-        when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("");
 
         User user = new User();
         user.setSpotifyUserId("test-spotify-user-id");
         when(spotifyAPIService.fetchUserDetails(any(String.class))).thenReturn(user);
 
         when(userService.getUserBySpotifyUserId(anyString())).thenReturn(Optional.of(user));
-        doNothing().when(userService).updateUserTokens(user, spotifyToken);
+        doNothing().when(userService).updateSpotifyTokens(user, spotifyToken);
 
         when(jwtUtil.createToken(anyString())).thenReturn("test-jwt");
 
-        Map<String, String> response = authService.completeAuthentication("spotify-auth-code", "");
-
-        Map<String, String> authenticationMap = new HashMap<>();
-        authenticationMap.put("jwt", "test-jwt");
-        authenticationMap.put("redirectUri", "http://127.0.0.1/test-frontend-redirect-uri");
-
-        assertEquals(authenticationMap, response);
-    }
-
-    @Test
-    void testCompleteAuthenticationExistingUserSessionSuccess() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
-        SpotifyToken spotifyToken = mockSpotifyAPIAuthenticate();
-
-        when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
-        when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("test-user-id");
-
-        when(userService.getUserBySpotifyUserId(anyString())).thenReturn(Optional.of(new User()));
-        doNothing().when(userService).updateUserTokens(any(User.class), eq(spotifyToken));
-
-        Map<String, String> response = authService.completeAuthentication("spotify-auth-code", "test-jwt");
+        Map<String, String> response = authService.completeAuthentication("spotify-auth-code");
 
         Map<String, String> authenticationMap = new HashMap<>();
         authenticationMap.put("jwt", "test-jwt");
@@ -158,26 +137,10 @@ class AuthServiceTest {
 
         mockSpotifyAPIAuthenticate();
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
-        when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("");
 
         when(spotifyAPIService.fetchUserDetails(any(String.class))).thenThrow(new SpotifyAPIException("No User Returned from Spotify"));
 
-        Map<String, String> response = authService.completeAuthentication("spotify-auth-code", "test-jwt");
-
-        assertTrue(response.isEmpty());
-    }
-
-    @Test
-    void testCompleteAuthenticationFailureNoSessionFoundForExistingUser() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
-
-        mockSpotifyAPIAuthenticate();
-
-        when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
-        when(jwtUtil.getUserIdFromToken(anyString())).thenReturn("test-user-id");
-
-        when(userService.getUserBySpotifyUserId(anyString())).thenReturn(Optional.empty());
-
-        Map<String, String> response = authService.completeAuthentication("spotify-auth-code", "test-jwt");
+        Map<String, String> response = authService.completeAuthentication("spotify-auth-code");
 
         assertTrue(response.isEmpty());
     }

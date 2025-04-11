@@ -94,13 +94,13 @@ class UserServiceTest {
     }
 
     @Test
-    void testUpdateUserTokensSuccess() {
+    void testUpdateSpotifyTokensSuccess() {
         SpotifyToken spotifyToken = new SpotifyToken();
         spotifyToken.setRefreshToken("test-spotify-refresh-token");
 
         when(userRepository.save(any(User.class))).thenReturn(new User());
 
-        userService.updateUserTokens(new User(), spotifyToken);
+        userService.updateSpotifyTokens(new User(), spotifyToken);
 
         verify(userRepository, times(1)).save(any(User.class));
     }

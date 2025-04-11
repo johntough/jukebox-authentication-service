@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -103,8 +102,7 @@ class AuthControllerIntegrationTest {
     void testSpotifyAuthorizationCallbackSuccess() throws Exception {
         when(jwtUtil.validateToken(anyString())).thenReturn(true);
         when(authService.completeAuthentication(
-                anyString(),
-                any()
+                anyString()
         )).thenReturn(Map.of("redirectUri", "http://test-redirect-uri", "jwt", "test-jwt-value"));
 
         mockMvc.perform(get("/auth/spotifyAuthorizationCallback")
@@ -119,8 +117,7 @@ class AuthControllerIntegrationTest {
     void testSpotifyAuthorizationCallbackFailureInternalServerError500() throws Exception {
         when(jwtUtil.validateToken(anyString())).thenReturn(true);
         when(authService.completeAuthentication(
-                anyString(),
-                any()
+                anyString()
         )).thenReturn(Map.of());
 
         mockMvc.perform(get("/auth/spotifyAuthorizationCallback")

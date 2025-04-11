@@ -49,9 +49,9 @@ public class AuthController {
 
         logger.info("/auth/spotifyAuthorizationCallback request received");
 
-        Map<String, String> authenticationMap = authService.completeAuthentication(code, (String)request.getAttribute(JWT_LABEL));
+        Map<String, String> authenticationMap = authService.completeAuthentication(code);
 
-        if (authenticationMap.get(JWT_LABEL) == null || authenticationMap.isEmpty() || authenticationMap.get(REDIRECT_URI_LABEL) == null || authenticationMap.isEmpty()) {
+        if (authenticationMap.isEmpty() || authenticationMap.get(JWT_LABEL) == null || authenticationMap.get(REDIRECT_URI_LABEL) == null) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         } else {
             ResponseCookie cookie = ResponseCookie.from(JWT_LABEL, authenticationMap.get(JWT_LABEL))

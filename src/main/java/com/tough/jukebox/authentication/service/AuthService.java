@@ -46,14 +46,13 @@ public class AuthService {
         );
     }
 
-    public Map<String, String> completeAuthentication(String spotifyAuthCode, String incomingJwt) {
+    public Map<String, String> completeAuthentication(String spotifyAuthCode) {
 
         try {
             Map<String, String> authenticationMap = new HashMap<>();
             authenticationMap.put("redirectUri", webConfig.getFrontendRedirectUri());
             authenticationMap.put("jwt", checkAndCreateUser(
-                    spotifyAPIService.authenticate(spotifyAuthCode),
-                    incomingJwt)
+                    spotifyAPIService.authenticate(spotifyAuthCode))
             );
             return authenticationMap;
         } catch (SpotifyAPIException | UserSessionException | NoSuchAlgorithmException | InvalidKeySpecException exception) {
@@ -95,36 +94,25 @@ public class AuthService {
     private void refreshAccessToken(User user) {
         try {
             SpotifyToken spotifyToken = spotifyAPIService.refreshAccessToken(user.getSpotifyToken().getRefreshToken());
-            userService.updateUserTokens(user, spotifyToken);
+            userService.updateSpotifyTokens(user, spotifyToken);
         } catch (SpotifyAPIException exception) {
             LOGGER.error(exception.getMessage());
         }
     }
 
-    private String checkAndCreateUser(SpotifyToken newSpotifyToken, String jwtToken) throws SpotifyAPIException, UserSessionException, NoSuchAlgorithmException, InvalidKeySpecException {
+    private String checkAndCreateUser(SpotifyToken newSpotifyToken) throws SpotifyAPIException, UserSessionException, NoSuchAlgorithmException, InvalidKeySpecException {
 
-        String spotifyUserId = jwtUtil.getUserIdFromToken(jwtToken);
+        User user = spotifyAPIService.fetchUserDetails(newSpotifyToken.getAccessToken());
 
-        if (spotifyUserId.isEmpty()) {
-            LOGGER.info("No session exists for user");
-            User user = spotifyAPIService.fetchUserDetails(newSpotifyToken.getAccessToken());
-
-            // check if user exists in database (i.e. has previously logged in) and update
-            userService.getUserBySpotifyUserId(user.getSpotifyUserId()).ifPresentOrElse(
-                    userEntity -> {
-                        userService.updateUserTokens(userEntity, newSpotifyToken);
-                        LOGGER.info("New access tokens created for existing user: {}.", userEntity.getSpotifyUserId());
-                    }, () -> {
-                        userService.updateUserTokens(user, newSpotifyToken);
-                        LOGGER.info("New user profile (and access tokens) created for user: {}.", user.getSpotifyUserId());
-                    }
-            );
-            return jwtUtil.createToken(user.getSpotifyUserId());
-        } else {
-            User userEntity = userService.getUserBySpotifyUserId(spotifyUserId).orElseThrow(() -> new UserSessionException("No user returned from Spotify"));
-            userService.updateUserTokens(userEntity, newSpotifyToken);
-            LOGGER.info("Session exists for user: {}", spotifyUserId);
-        }
-        return jwtToken;
+        // check if user exists in database (i.e. has previously logged in) and update
+        userService.getUserBySpotifyUserId(user.getSpotifyUserId()).ifPresentOrElse(
+                userEntity -> {
+                    userService.updateSpotifyTokens(userEntity, newSpotifyToken);
+                    LOGGER.info("New access tokens created for existing user: {}.", userEntity.getSpotifyUserId());
+                }, () -> {
+                    userService.updateSpotifyTokens(user, newSpotifyToken);
+                    LOGGER.info("New user profile (and access tokens) created for user: {}.", user.getSpotifyUserId());
+                });
+        return jwtUtil.createToken(user.getSpotifyUserId());
     }
 }
