@@ -3,7 +3,6 @@ package com.tough.jukebox.authentication.service;
 import com.tough.jukebox.authentication.config.SpotifyConfig;
 import com.tough.jukebox.authentication.config.WebConfig;
 import com.tough.jukebox.authentication.exception.SpotifyAPIException;
-import com.tough.jukebox.authentication.exception.UserSessionException;
 import com.tough.jukebox.authentication.model.SpotifyToken;
 import com.tough.jukebox.authentication.model.User;
 import com.tough.jukebox.authentication.security.JwtUtil;
@@ -46,19 +45,13 @@ public class AuthService {
         );
     }
 
-    public Map<String, String> completeAuthentication(String spotifyAuthCode) {
-
-        try {
+    public Map<String, String> completeAuthentication(String spotifyAuthCode) throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
             Map<String, String> authenticationMap = new HashMap<>();
             authenticationMap.put("redirectUri", webConfig.getFrontendRedirectUri());
             authenticationMap.put("jwt", checkAndCreateUser(
                     spotifyAPIService.authenticate(spotifyAuthCode))
             );
             return authenticationMap;
-        } catch (SpotifyAPIException | UserSessionException | NoSuchAlgorithmException | InvalidKeySpecException exception) {
-            LOGGER.error(exception.getMessage());
-            return new HashMap<>();
-        }
     }
 
     public boolean logOut(String jwt) {
@@ -100,7 +93,7 @@ public class AuthService {
         }
     }
 
-    private String checkAndCreateUser(SpotifyToken newSpotifyToken) throws SpotifyAPIException, UserSessionException, NoSuchAlgorithmException, InvalidKeySpecException {
+    private String checkAndCreateUser(SpotifyToken newSpotifyToken) throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
 
         User user = spotifyAPIService.fetchUserDetails(newSpotifyToken.getAccessToken());
 

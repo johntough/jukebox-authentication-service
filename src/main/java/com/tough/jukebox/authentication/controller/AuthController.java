@@ -1,5 +1,6 @@
 package com.tough.jukebox.authentication.controller;
 
+import com.tough.jukebox.authentication.exception.SpotifyAPIException;
 import com.tough.jukebox.authentication.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.time.Duration;
 import java.util.Map;
 
@@ -49,11 +52,9 @@ public class AuthController {
 
         logger.info("/auth/spotifyAuthorizationCallback request received");
 
-        Map<String, String> authenticationMap = authService.completeAuthentication(code);
+        try {
+            Map<String, String> authenticationMap = authService.completeAuthentication(code);
 
-        if (authenticationMap.isEmpty() || authenticationMap.get(JWT_LABEL) == null || authenticationMap.get(REDIRECT_URI_LABEL) == null) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        } else {
             ResponseCookie cookie = ResponseCookie.from(JWT_LABEL, authenticationMap.get(JWT_LABEL))
                     .httpOnly(true)
                     .secure(false)
@@ -65,6 +66,10 @@ public class AuthController {
                     .header(HttpHeaders.LOCATION, authenticationMap.get(REDIRECT_URI_LABEL))
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
                     .build();
+        } catch(SpotifyAPIException spotifyAPIException) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch(NoSuchAlgorithmException | InvalidKeySpecException exception) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
 

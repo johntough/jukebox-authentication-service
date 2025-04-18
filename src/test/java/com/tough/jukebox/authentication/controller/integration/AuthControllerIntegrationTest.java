@@ -1,6 +1,7 @@
 package com.tough.jukebox.authentication.controller.integration;
 
 import com.tough.jukebox.authentication.controller.AuthController;
+import com.tough.jukebox.authentication.exception.SpotifyAPIException;
 import com.tough.jukebox.authentication.security.JwtUtil;
 import com.tough.jukebox.authentication.service.AuthService;
 import jakarta.servlet.http.Cookie;
@@ -12,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyString;
@@ -114,16 +117,44 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void testSpotifyAuthorizationCallbackFailureInternalServerError500() throws Exception {
+    void testSpotifyAuthorizationCallbackFailureSpotifyAPIException() throws Exception {
         when(jwtUtil.validateToken(anyString())).thenReturn(true);
         when(authService.completeAuthentication(
                 anyString()
-        )).thenReturn(Map.of());
+        )).thenThrow(new SpotifyAPIException("Spotify API Exception"));
 
         mockMvc.perform(get("/auth/spotifyAuthorizationCallback")
                         .param("code", "test-code")
                         .cookie(new Cookie("jwt", "mock-jwt-value")))
                 .andExpect(status().isInternalServerError())
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+    }
+
+    @Test
+    void testSpotifyAuthorizationCallbackFailureNoSuchAlgorithmException() throws Exception {
+        when(jwtUtil.validateToken(anyString())).thenReturn(true);
+        when(authService.completeAuthentication(
+                anyString()
+        )).thenThrow(new NoSuchAlgorithmException("Spotify API Exception"));
+
+        mockMvc.perform(get("/auth/spotifyAuthorizationCallback")
+                        .param("code", "test-code")
+                        .cookie(new Cookie("jwt", "mock-jwt-value")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+    }
+
+    @Test
+    void testSpotifyAuthorizationCallbackFailureInvalidKeySpecException() throws Exception {
+        when(jwtUtil.validateToken(anyString())).thenReturn(true);
+        when(authService.completeAuthentication(
+                anyString()
+        )).thenThrow(new InvalidKeySpecException("Spotify API Exception"));
+
+        mockMvc.perform(get("/auth/spotifyAuthorizationCallback")
+                        .param("code", "test-code")
+                        .cookie(new Cookie("jwt", "mock-jwt-value")))
+                .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
     }
 

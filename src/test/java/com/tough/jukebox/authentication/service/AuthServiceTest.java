@@ -140,9 +140,7 @@ class AuthServiceTest {
 
         when(spotifyAPIService.fetchUserDetails(any(String.class))).thenThrow(new SpotifyAPIException("No User Returned from Spotify"));
 
-        Map<String, String> response = authService.completeAuthentication("spotify-auth-code");
-
-        assertTrue(response.isEmpty());
+        assertThrows(SpotifyAPIException.class, () -> authService.completeAuthentication("spotify-auth-code"));
     }
 
     private SpotifyToken mockSpotifyAPIAuthenticate() throws SpotifyAPIException {
