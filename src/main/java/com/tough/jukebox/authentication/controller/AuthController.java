@@ -21,7 +21,7 @@ import java.util.Map;
 @RestController
 public class AuthController {
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthController.class);
 
     private static final String JWT_LABEL = "jwt";
     private static final String REDIRECT_URI_LABEL = "redirectUri";
@@ -35,14 +35,14 @@ public class AuthController {
 
     @GetMapping("auth/spotifyRedirectParams")
     public ResponseEntity<Map<String, String>> getSpotifyRedirectParams() {
-
-        logger.info("/auth/spotifyRedirectParams request received");
+        LOGGER.info("/auth/spotifyRedirectParams request received");
 
         Map<String, String> params = authService.getSpotifyRedirectParams();
 
         if (params != null && !params.isEmpty()) {
             return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(params);
         } else {
+            LOGGER.error("Spotify params Not Found (404)");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
@@ -50,7 +50,7 @@ public class AuthController {
     @GetMapping("auth/spotifyAuthorizationCallback")
     public ResponseEntity<Void> authenticate(@RequestParam String code, HttpServletRequest request) {
 
-        logger.info("/auth/spotifyAuthorizationCallback request received");
+        LOGGER.info("/auth/spotifyAuthorizationCallback request received");
 
         try {
             Map<String, String> authenticationMap = authService.completeAuthentication(code);
@@ -67,21 +67,23 @@ public class AuthController {
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
                     .build();
         } catch(SpotifyAPIException spotifyAPIException) {
+            LOGGER.error("Internal Server Error (500): {}", spotifyAPIException.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         } catch(NoSuchAlgorithmException | InvalidKeySpecException exception) {
+            LOGGER.error("Unauthorized (401): {}", exception.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
 
     @GetMapping("auth/loginCheck")
     public ResponseEntity<Void> loginCheck(HttpServletRequest request) {
-        logger.info("/auth/loginCheck request received");
+        LOGGER.info("/auth/loginCheck request received");
         return ResponseEntity.status(HttpStatus.OK).build();
     }
 
     @PostMapping("auth/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response, HttpServletRequest request) {
-        logger.info("/auth/logout request received");
+        LOGGER.info("/auth/logout request received");
 
         boolean userLogoutSuccess = authService.logOut((String)request.getAttribute(JWT_LABEL));
 

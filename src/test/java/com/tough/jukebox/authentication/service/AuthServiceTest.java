@@ -133,7 +133,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testCompleteAuthenticationFailureNoUserReturnedFromSpotify() throws SpotifyAPIException, NoSuchAlgorithmException, InvalidKeySpecException {
+    void testCompleteAuthenticationFailureNoUserReturnedFromSpotify() throws SpotifyAPIException {
 
         mockSpotifyAPIAuthenticate();
         when(webConfig.getFrontendRedirectUri()).thenReturn("http://127.0.0.1/test-frontend-redirect-uri");
