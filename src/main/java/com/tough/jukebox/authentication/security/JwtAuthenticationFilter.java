@@ -34,20 +34,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (requestURI.startsWith("/auth/spotifyAuthorizationCallback") || requestURI.startsWith("/auth/spotifyRedirectParams")) {
             filterChain.doFilter(request, response);
-        } else {
-            String token = extractTokenFromRequest(request);
+            return;
+        }
 
-            if (token != null && jwtUtil.validateToken(token)) {
-                try {
-                    request.setAttribute("userId", jwtUtil.getUserIdFromToken(token));
-                } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-                    setUnauthorizedResponseHeaders(response, requestURI);
-                }
-                request.setAttribute("jwt", token);
-                filterChain.doFilter(request, response);
-            } else {
-                setUnauthorizedResponseHeaders(response, requestURI);
-            }
+        String token = extractTokenFromRequest(request);
+
+        if (token == null || !jwtUtil.validateToken(token)) {
+            setUnauthorizedResponseHeaders(response, requestURI);
+            return;
+        }
+
+        try {
+            request.setAttribute("userId", jwtUtil.getUserIdFromToken(token));
+            request.setAttribute("jwt", token);
+            filterChain.doFilter(request, response);
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            setUnauthorizedResponseHeaders(response, requestURI);
         }
     }
 
